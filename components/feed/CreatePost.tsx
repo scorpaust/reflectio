@@ -221,8 +221,8 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
                   onClick={() => setType(ct.value)}
                   className={`p-3 rounded-lg border-2 transition-colors flex flex-col items-center gap-1 ${
                     type === ct.value
-                      ? "border-purple-600 bg-purple-50"
-                      : "border-gray-200 hover:border-gray-300"
+                      ? "border-purple-600 bg-purple-50 text-purple-700"
+                      : "border-gray-200 hover:border-gray-300 text-gray-700"
                   }`}
                 >
                   <Icon className="w-5 h-5" />

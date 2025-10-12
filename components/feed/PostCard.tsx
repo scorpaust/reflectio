@@ -16,7 +16,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 
 interface PostCardProps {
   post: PostWithAuthor;
-  onReflect?: (postId: string) => void;
+  onReflect?: () => void; // Mudamos para não precisar passar parâmetros
   onUpgrade?: () => void;
 }
 
@@ -123,8 +123,7 @@ export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
           {/* Actions */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
             <button
-              type="button"
-              onClick={() => onReflect?.(post.id)}
+              onClick={onReflect}
               disabled={!profile?.is_premium}
               className="flex items-center gap-2 text-purple-600 hover:text-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
