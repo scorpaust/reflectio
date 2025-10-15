@@ -19,24 +19,43 @@ export default function FeedPage() {
     id: string;
     title: string;
   } | null>(null);
+  const [filterType, setFilterType] = useState<"all" | "text" | "audio">("all");
 
   const fetchPosts = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("posts")
         .select(
           `
-          *,
-          author:profiles(id, full_name, username, avatar_url, current_level)
-        `
+        *,
+        author:profiles(id, full_name, username, avatar_url, current_level)
+      `
         )
         .eq("status", "published")
         .order("created_at", { ascending: false })
         .limit(20);
 
+      // Aplicar filtro
+      if (filterType === "audio") {
+        query = query.not("audio_url", "is", null);
+      } else if (filterType === "text") {
+        query = query.is("audio_url", null);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
 
-      setPosts(data as PostWithAuthor[]);
+      // Ensure all posts have the required audio fields with defaults
+      const postsWithDefaults = (data || []).map((post) => ({
+        ...post,
+        audio_url: (post as any).audio_url || null,
+        audio_duration: (post as any).audio_duration || null,
+        audio_waveform: (post as any).audio_waveform || null,
+        audio_transcript: (post as any).audio_transcript || null,
+      })) as PostWithAuthor[];
+
+      setPosts(postsWithDefaults);
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
@@ -46,7 +65,7 @@ export default function FeedPage() {
 
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [filterType]);
 
   const handleReflect = (postId: string, postTitle: string) => {
     if (!profile?.is_premium) {
@@ -66,6 +85,51 @@ export default function FeedPage() {
             : post
         )
       );
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    const supabase = createClient();
+
+    try {
+      // Primeiro, tentar apagar o arquivo de áudio se existir
+      const postToDelete = posts.find((p) => p.id === postId);
+      if (postToDelete?.audio_url) {
+        try {
+          // Extrair o caminho do arquivo da URL
+          const urlParts = postToDelete.audio_url.split("/");
+          const bucketIndex =
+            urlParts.findIndex((part) => part === "public") + 1;
+          const bucketName = urlParts[bucketIndex];
+          const filePath = urlParts.slice(bucketIndex + 1).join("/");
+
+          console.log("Deleting audio file:", { bucketName, filePath });
+
+          const { error: storageError } = await supabase.storage
+            .from(bucketName)
+            .remove([filePath]);
+
+          if (storageError) {
+            console.warn("Failed to delete audio file:", storageError);
+            // Continuar mesmo se falhar a apagar o áudio
+          }
+        } catch (error) {
+          console.warn("Error deleting audio file:", error);
+        }
+      }
+
+      // Apagar o post da base de dados
+      const { error } = await supabase.from("posts").delete().eq("id", postId);
+
+      if (error) throw error;
+
+      // Remover o post da lista local
+      setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));
+
+      console.log("Post deleted successfully");
+    } catch (error: any) {
+      console.error("Error deleting post:", error);
+      throw new Error(error.message || "Erro ao apagar o post");
     }
   };
 
@@ -90,6 +154,39 @@ export default function FeedPage() {
         </p>
       </div>
 
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setFilterType("all")}
+          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+            filterType === "all"
+              ? "bg-purple-600 text-white"
+              : "bg-white text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          Todos
+        </button>
+        <button
+          onClick={() => setFilterType("text")}
+          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+            filterType === "text"
+              ? "bg-purple-600 text-white"
+              : "bg-white text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          ✍️ Texto
+        </button>
+        <button
+          onClick={() => setFilterType("audio")}
+          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+            filterType === "audio"
+              ? "bg-purple-600 text-white"
+              : "bg-white text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          🎙️ Áudio
+        </button>
+      </div>
+
       <CreatePost onPostCreated={fetchPosts} />
 
       {posts.length === 0 ? (
@@ -111,6 +208,7 @@ export default function FeedPage() {
               post={post}
               onReflect={() => handleReflect(post.id, post.title)}
               onUpgrade={() => setShowPremiumModal(true)}
+              onDelete={handleDeletePost}
             />
           ))}
         </div>

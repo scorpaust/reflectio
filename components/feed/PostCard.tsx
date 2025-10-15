@@ -1,12 +1,16 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import {
   Book,
   Film,
   Image as ImageIcon,
   MessageCircle,
   Lock,
+  Trash2,
+  MoreVertical,
 } from "lucide-react";
+import { AudioPlayer } from "@/components/audio/AudioPlayer";
 import { PostWithAuthor } from "@/types/post.types";
 import { LEVELS } from "@/types/user.types";
 import { Card } from "@/components/ui/Card";
@@ -18,10 +22,36 @@ interface PostCardProps {
   post: PostWithAuthor;
   onReflect?: () => void; // Mudamos para não precisar passar parâmetros
   onUpgrade?: () => void;
+  onDelete?: (postId: string) => void;
 }
 
-export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
+export function PostCard({
+  post,
+  onReflect,
+  onUpgrade,
+  onDelete,
+}: PostCardProps) {
   const { profile } = useAuth();
+  const [showMenu, setShowMenu] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fechar menu quando clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMenu]);
   const authorLevel = LEVELS[post.author.current_level || 1] ||
     LEVELS[1] || {
       id: 1,
@@ -31,17 +61,38 @@ export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
       min_quality_score: 0,
     };
   const canAccess = !post.is_premium_content || profile?.is_premium;
+  const isAuthor = profile?.id === post.author_id;
+
+  const handleDelete = async () => {
+    if (!onDelete || !isAuthor) return;
+
+    const confirmed = window.confirm(
+      "Tem certeza que deseja apagar este post? Esta ação não pode ser desfeita."
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      await onDelete(post.id);
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert("Erro ao apagar o post. Tente novamente.");
+    } finally {
+      setIsDeleting(false);
+      setShowMenu(false);
+    }
+  };
 
   const getTypeIcon = () => {
     switch (post.type) {
       case "book":
-        return <Book className="w-5 h-5" />;
+        return <Book className="w-5 h-5 text-black" />;
       case "film":
-        return <Film className="w-5 h-5" />;
+        return <Film className="w-5 h-5 text-black" />;
       case "photo":
-        return <ImageIcon className="w-5 h-5" />;
+        return <ImageIcon className="w-5 h-5 text-black" />;
       case "thought":
-        return <MessageCircle className="w-5 h-5" />;
+        return <MessageCircle className="w-5 h-5 text-black" />;
     }
   };
 
@@ -93,9 +144,53 @@ export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-gray-400">
-          {getTypeIcon()}
-          <span className="text-xs text-gray-500">{getTypeLabel()}</span>
+        <div className="flex items-center gap-2">
+          <div className="text-gray-800">{getTypeIcon()}</div>
+          <span className="text-xs uppercase font-semibold text-gray-800">
+            {getTypeLabel()}
+          </span>
+          {post.audio_url && (
+            <>
+              <span className="text-gray-300">•</span>
+              <span className="flex items-center gap-1 text-purple-600 text-xs font-semibold">
+                🎙️ Áudio{" "}
+                {post.audio_duration &&
+                  `(${Math.floor(post.audio_duration / 60)}:${(
+                    post.audio_duration % 60
+                  )
+                    .toString()
+                    .padStart(2, "0")})`}
+              </span>
+            </>
+          )}
+
+          {/* Menu dropdown para o autor */}
+          {isAuthor && (
+            <div className="relative ml-2" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Opções do post"
+              >
+                <MoreVertical className="w-4 h-4 text-gray-600" />
+              </button>
+
+              {showMenu && (
+                <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[120px]">
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {isDeleting ? "Apagando..." : "Apagar post"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -104,21 +199,33 @@ export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
         <>
           <h3 className="text-xl font-bold text-gray-800 mb-3">{post.title}</h3>
 
-          <p className="text-gray-600 leading-relaxed mb-4 whitespace-pre-wrap">
-            {post.content}
-          </p>
+          {/* Se tem áudio, mostrar player */}
+          {post.audio_url ? (
+            <div className="mb-4">
+              <AudioPlayer
+                audioUrl={post.audio_url}
+                waveformData={(post.audio_waveform as number[]) || undefined}
+                title={post.title}
+              />
+            </div>
+          ) : (
+            /* Senão, mostrar conteúdo de texto */
+            <p className="text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">
+              {post.content}
+            </p>
+          )}
 
           {/* Sources */}
           {post.sources && post.sources.length > 0 && (
             <div className="bg-gray-50 rounded-lg p-3 mb-4">
-              <p className="text-xs text-gray-500 mb-2 font-semibold">
+              <p className="text-xs text-gray-700 mb-2 font-semibold">
                 📚 Fontes & Referências:
               </p>
               <div className="flex flex-wrap gap-2">
                 {post.sources.map((source, idx) => (
                   <span
                     key={idx}
-                    className="text-xs bg-white px-3 py-1 rounded-full text-gray-600 border border-gray-200"
+                    className="text-xs bg-white px-3 py-1 rounded-full text-gray-700 border border-gray-200"
                   >
                     {source}
                   </span>
@@ -130,6 +237,7 @@ export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
           {/* Actions */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
             <button
+              type="button"
               onClick={onReflect}
               disabled={!profile?.is_premium}
               className="flex items-center gap-2 text-purple-600 hover:text-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -150,6 +258,7 @@ export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
           </div>
         </>
       ) : (
+        /* Locked content permanece igual */
         <div className="bg-gradient-to-r from-amber-50 to-purple-50 rounded-lg p-8 text-center">
           <Lock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
           <h4 className="font-bold text-gray-800 mb-2">Conteúdo Premium</h4>

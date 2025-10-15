@@ -8,10 +8,12 @@ import {
   MessageCircle,
   Plus,
   X,
+  Mic,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { AudioRecorder } from "@/components/audio/AudioRecorder";
 import { ContentType } from "@/types/post.types";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
@@ -22,7 +24,7 @@ interface CreatePostProps {
 
 export function CreatePost({ onPostCreated }: CreatePostProps) {
   const { profile } = useAuth();
-
+  const supabase = createClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -33,6 +35,11 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
   const [sources, setSources] = useState<string[]>([]);
   const [currentSource, setCurrentSource] = useState("");
   const [isPremiumContent, setIsPremiumContent] = useState(false);
+
+  // Audio state
+  const [isAudioMode, setIsAudioMode] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioDuration, setAudioDuration] = useState(0);
 
   const contentTypes = [
     { value: "book" as ContentType, label: "Livro", icon: Book },
@@ -56,101 +63,175 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
     setSources(sources.filter((_, i) => i !== index));
   };
 
+  const handleAudioReady = (blob: Blob, duration: number) => {
+    console.log("Audio ready:", { blob, duration });
+    setAudioBlob(blob);
+    setAudioDuration(duration);
+  };
+
+  const generateWaveform = () => {
+    // Gerar waveform simulado (50 pontos)
+    return Array.from({ length: 50 }, () => Math.random() * 100);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
 
     try {
-      console.log("🚀 Starting post creation...");
-
       if (!profile?.id) {
         throw new Error("Você precisa estar autenticado");
       }
 
-      // Check content size - SEVERE limit due to Supabase RLS timeout
-      const contentLength = content.trim().length;
+      let audioUrl = null;
+      let waveform = null;
 
-      if (contentLength > 200) {
-        throw new Error(
-          `Por limitações técnicas temporárias, o máximo é 200 caracteres.\n\nPara resolver: execute o SQL em COMO_CONSERTAR_POSTS.md no Supabase Dashboard.`
-        );
+      // Se tem áudio, fazer upload primeiro
+      if (audioBlob) {
+        console.log("Uploading audio blob:", audioBlob);
+        // Determinar extensão baseada no tipo do blob
+        let fileExt = "webm"; // default
+        if (audioBlob.type.includes("mp4")) {
+          fileExt = "mp4";
+        } else if (audioBlob.type.includes("mpeg")) {
+          fileExt = "mp3";
+        } else if (audioBlob.type.includes("wav")) {
+          fileExt = "wav";
+        } else if (audioBlob.type.includes("webm")) {
+          fileExt = "webm";
+        }
+
+        let fileName = `${profile.id}/audio-${Date.now()}.${fileExt}`;
+        console.log("Audio blob type:", audioBlob.type, "Extension:", fileExt);
+
+        // Tentar upload no bucket audio-posts, se falhar tentar avatars como fallback
+        let { data: uploadData, error: uploadError } = await supabase.storage
+          .from("audio-posts")
+          .upload(fileName, audioBlob, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        let bucketName = "audio-posts";
+
+        // Se falhar, tentar no bucket avatars como fallback
+        if (uploadError && uploadError.message.includes("Bucket not found")) {
+          console.log("audio-posts bucket not found, trying avatars bucket");
+          const fallbackFileName = `audio/${fileName}`;
+          const uploadResult = await supabase.storage
+            .from("avatars")
+            .upload(fallbackFileName, audioBlob, {
+              cacheControl: "3600",
+              upsert: false,
+            });
+
+          uploadData = uploadResult.data;
+          uploadError = uploadResult.error;
+          bucketName = "avatars";
+          fileName = fallbackFileName;
+        }
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+
+          // Se o bucket não existe, tentar criar
+          if (uploadError.message.includes("Bucket not found")) {
+            throw new Error(
+              "Bucket de áudio não configurado. Execute o script setup-audio-bucket.sql"
+            );
+          }
+
+          throw new Error(`Erro no upload do áudio: ${uploadError.message}`);
+        }
+
+        console.log("Upload successful:", uploadData);
+
+        // Tentar obter URL pública, se falhar usar URL assinada
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+
+        // Verificar se a URL pública funciona, senão criar URL assinada
+        let finalAudioUrl = publicUrl;
+        try {
+          const testResponse = await fetch(publicUrl, { method: "HEAD" });
+          if (!testResponse.ok) {
+            console.log("Public URL failed, creating signed URL");
+            const { data: signedUrlData, error: signedError } =
+              await supabase.storage
+                .from(bucketName)
+                .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 dias
+
+            if (signedError) {
+              console.error("Signed URL error:", signedError);
+            } else {
+              finalAudioUrl = signedUrlData.signedUrl;
+              console.log("Using signed URL:", finalAudioUrl);
+            }
+          }
+        } catch (error) {
+          console.log("URL test failed, using original URL");
+        }
+
+        // Verificar se o arquivo existe
+        const folderPath = bucketName === "avatars" ? "audio" : profile.id;
+        const searchName = fileName.includes("/")
+          ? fileName.split("/").pop()
+          : fileName;
+
+        const { data: fileData, error: fileError } = await supabase.storage
+          .from(bucketName)
+          .list(folderPath, {
+            search: searchName,
+          });
+
+        if (fileError || !fileData || fileData.length === 0) {
+          console.error("File verification failed:", fileError);
+          throw new Error("Arquivo de áudio não foi criado corretamente");
+        }
+
+        audioUrl = finalAudioUrl;
+        waveform = generateWaveform();
+        console.log("Audio uploaded successfully:", audioUrl);
+        console.log("File verified:", fileData[0]);
       }
 
-      const supabase = createClient();
-
-      const payload = {
-        author_id: profile.id,
-        title: title.trim(),
-        content: content.trim(),
-        type,
-        sources: sources.length > 0 ? sources : null,
-        is_premium_content: isPremiumContent,
-        status: "published" as const,
-      };
-
-      console.log("📦 Payload size:", JSON.stringify(payload).length, "bytes");
-
-      // Insert with 10 second timeout
-      console.log("🔄 Sending to Supabase...");
-
-      const insertPromise = supabase
+      // Criar post
+      const { data, error: insertError } = await supabase
         .from("posts")
-        .insert(payload)
-        .select();
+        .insert({
+          author_id: profile.id,
+          title: title.trim(),
+          content: isAudioMode ? "" : content.trim(),
+          type,
+          sources,
+          is_premium_content: isPremiumContent,
+          status: "published",
+          audio_url: audioUrl,
+          audio_duration: audioDuration,
+          audio_waveform: waveform,
+          audio_transcript: null, // Could be added later with speech-to-text
+        })
+        .select()
+        .single();
 
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          console.log("⏱️ Insert timeout (10s)");
-          reject(new Error("Timeout após 10 segundos"));
-        }, 10000);
-      });
-
-      let data, insertError;
-      try {
-        const result = (await Promise.race([
-          insertPromise,
-          timeoutPromise,
-        ])) as any;
-        data = result.data;
-        insertError = result.error;
-
-        console.log("✅ Insert completed:", {
-          success: !insertError,
-          error: insertError?.message,
-          dataReceived: !!data,
-        });
-      } catch (err: any) {
-        console.error("⏱️ Timeout error:", err);
-        throw new Error(
-          "O servidor está demorando muito. Tente:\n1. Texto mais curto\n2. Sem fontes\n3. Recarregar a página"
-        );
-      }
-
-      if (insertError) {
-        console.error("❌ Supabase error:", insertError);
-        throw new Error(insertError.message || "Erro ao criar post");
-      }
-
-      console.log("�� Post created successfully!");
+      if (insertError) throw insertError;
 
       // Reset form
       setTitle("");
       setContent("");
       setSources([]);
       setIsPremiumContent(false);
+      setIsAudioMode(false);
+      setAudioBlob(null);
+      setAudioDuration(0);
       setIsOpen(false);
 
-      // Refresh posts list
-      if (onPostCreated) {
-        console.log("🔄 Calling onPostCreated callback...");
-        onPostCreated();
-      }
+      onPostCreated?.();
     } catch (err: any) {
-      console.error("❌ Error creating post:", err);
       setError(err.message || "Erro ao criar post");
     } finally {
-      console.log("✅ Setting loading to false");
       setIsLoading(false);
     }
   };
@@ -163,7 +244,6 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
     return (
       <Card>
         <button
-          type="button"
           onClick={() => setIsOpen(true)}
           className="w-full text-left p-4 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3"
         >
@@ -171,7 +251,7 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
             <Plus className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1">
-            <p className="text-gray-500">
+            <p className="text-gray-700">
               Compartilhe uma reflexão cultural...
             </p>
           </div>
@@ -187,28 +267,23 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
           <h3 className="text-lg font-bold text-gray-800">Criar Conteúdo</h3>
           <button
             type="button"
-            title="X"
             onClick={() => setIsOpen(false)}
             className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            aria-label="Fechar formulário de criação de post"
           >
-            <X className="w-5 h-5 text-gray-600" />
+            <X className="w-5 h-5 text-gray-800" />
           </button>
         </div>
 
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded-lg text-xs">
-          ⚠️ <strong>Limite temporário: 200 caracteres</strong>
-          <br />O Supabase precisa ser configurado para aceitar posts maiores.
-        </div>
-
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm whitespace-pre-wrap">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">
             {error}
           </div>
         )}
 
         {/* Type Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-800 mb-2">
             Tipo de Conteúdo
           </label>
           <div className="grid grid-cols-4 gap-2">
@@ -221,12 +296,14 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
                   onClick={() => setType(ct.value)}
                   className={`p-3 rounded-lg border-2 transition-colors flex flex-col items-center gap-1 ${
                     type === ct.value
-                      ? "border-purple-600 bg-purple-50 text-purple-700"
-                      : "border-gray-200 hover:border-gray-300 text-gray-700"
+                      ? "border-purple-600 bg-purple-50"
+                      : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-xs font-medium">{ct.label}</span>
+                  <Icon className="w-5 h-5 text-gray-800" />
+                  <span className="text-xs font-medium text-gray-800">
+                    {ct.label}
+                  </span>
                 </button>
               );
             })}
@@ -242,39 +319,59 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
           disabled={isLoading}
         />
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-gray-700">
-              Conteúdo
-            </label>
-            <span
-              className={`text-xs ${
-                content.length > 200
-                  ? "text-red-600 font-bold"
-                  : content.length > 150
-                  ? "text-orange-600"
-                  : "text-gray-500"
+        {/* Toggle entre Texto e Áudio */}
+        <div className="border-2 border-dashed border-purple-300 rounded-xl p-4">
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <button
+              type="button"
+              onClick={() => setIsAudioMode(false)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                !isAudioMode
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
               }`}
             >
-              {content.length} / 200 (limite temporário)
-            </span>
+              ✍️ Texto
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAudioMode(true)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                isAudioMode
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+              }`}
+            >
+              🎙️ Áudio
+            </button>
           </div>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Reflexão curta (máx 200 caracteres por agora)..."
-            rows={4}
-            required
-            disabled={isLoading}
-            maxLength={200}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none text-gray-900 placeholder-gray-500"
-            style={{ fontSize: "16px", lineHeight: "1.5" }}
-          />
+
+          {!isAudioMode ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1">
+                Conteúdo
+              </label>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Compartilhe sua reflexão profunda..."
+                rows={6}
+                required
+                disabled={isLoading}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none text-gray-800"
+              />
+            </div>
+          ) : (
+            <AudioRecorder
+              onAudioReady={handleAudioReady}
+              maxDuration={600} // 10 minutos
+            />
+          )}
         </div>
 
         {/* Sources */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-800 mb-1">
             Fontes e Referências
           </label>
           <div className="flex gap-2 mb-2">
@@ -282,7 +379,7 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
               value={currentSource}
               onChange={(e) => setCurrentSource(e.target.value)}
               placeholder="Ex: Meditações, Livro IV"
-              onKeyDown={(e) => {
+              onKeyPress={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   handleAddSource();
@@ -309,9 +406,9 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
                   {source}
                   <button
                     type="button"
-                    title="X"
                     onClick={() => handleRemoveSource(idx)}
                     className="hover:text-purple-900"
+                    aria-label={`Remover fonte: ${source}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -330,7 +427,7 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
             className="rounded text-purple-600 focus:ring-purple-500"
             disabled={isLoading}
           />
-          <span className="text-sm text-gray-700">
+          <span className="text-sm text-gray-800">
             Marcar como conteúdo Premium (apenas para membros Premium)
           </span>
         </label>
@@ -345,7 +442,12 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
           >
             Cancelar
           </Button>
-          <Button type="submit" isLoading={isLoading} className="flex-1">
+          <Button
+            type="submit"
+            isLoading={isLoading}
+            className="flex-1"
+            disabled={!title.trim() || (!content.trim() && !audioBlob)}
+          >
             Publicar
           </Button>
         </div>

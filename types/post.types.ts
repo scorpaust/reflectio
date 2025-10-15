@@ -17,6 +17,12 @@ export interface Post {
   moderation_reason: string | null;
   created_at: string;
   updated_at: string;
+
+  // Novos campos de áudio
+  audio_url: string | null;
+  audio_duration: number | null;
+  audio_waveform: number[] | null;
+  audio_transcript: string | null;
 }
 
 export interface PostWithAuthor extends Post {
