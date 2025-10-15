@@ -301,7 +301,16 @@ export function ReflectionModal({
           ) : (
             <div className="space-y-4">
               {reflections.map((reflection) => {
-                const authorLevel = LEVELS[reflection.author.current_level];
+                const authorLevel = LEVELS[
+                  reflection.author.current_level || 1
+                ] ||
+                  LEVELS[1] || {
+                    id: 1,
+                    name: "Iniciante",
+                    icon: "🌱",
+                    color: "text-gray-500",
+                    min_quality_score: 0,
+                  };
                 return (
                   <div
                     key={reflection.id}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/Button";
+import { PremiumModal } from "@/components/premium/PremiumModal";
 import { ROUTES } from "@/lib/constants";
 import { LEVELS } from "@/types/user.types";
 import { getInitials } from "@/lib/utils";
@@ -12,10 +13,18 @@ import { getInitials } from "@/lib/utils";
 export function Header() {
   const { user, profile, signOut } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
 
-  const currentLevel = profile && profile.current_level !== null
-    ? LEVELS[profile.current_level]
-    : LEVELS[0];
+  const currentLevel =
+    profile && profile.current_level !== null && LEVELS[profile.current_level]
+      ? LEVELS[profile.current_level]
+      : LEVELS[1] || {
+          id: 1,
+          name: "Iniciante",
+          icon: "🌱",
+          color: "text-gray-500",
+          min_quality_score: 0,
+        };
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
@@ -48,7 +57,11 @@ export function Header() {
 
             {/* Premium Button */}
             {!profile?.is_premium && (
-              <Button size="sm" className="hidden sm:flex items-center gap-2">
+              <Button
+                size="sm"
+                className="hidden sm:flex items-center gap-2"
+                onClick={() => setShowPremiumModal(true)}
+              >
                 <Crown className="w-4 h-4" />
                 Premium
               </Button>
@@ -57,6 +70,7 @@ export function Header() {
             {/* User Menu */}
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
@@ -90,19 +104,23 @@ export function Header() {
                   </Link>
 
                   {!profile?.is_premium && (
-                    <Link
-                      href="#"
-                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
-                      onClick={() => setShowDropdown(false)}
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors text-left"
+                      onClick={() => {
+                        setShowDropdown(false);
+                        setShowPremiumModal(true);
+                      }}
                     >
                       <Crown className="w-4 h-4 text-amber-500" />
                       <span className="text-sm text-gray-700">
                         Upgrade Premium
                       </span>
-                    </Link>
+                    </button>
                   )}
 
                   <button
+                    type="button"
                     onClick={() => {
                       setShowDropdown(false);
                       signOut();
@@ -118,6 +136,11 @@ export function Header() {
           </div>
         </div>
       </div>
+
+      <PremiumModal
+        isOpen={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
     </header>
   );
 }

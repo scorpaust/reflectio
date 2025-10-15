@@ -25,40 +25,40 @@ export interface Level {
   min_quality_score: number;
 }
 
-export const LEVELS: Level[] = [
-  {
-    id: 0,
+export const LEVELS: Record<number, Level> = {
+  1: {
+    id: 1,
     name: "Iniciante",
     icon: "🌱",
     color: "text-gray-500",
     min_quality_score: 0,
   },
-  {
-    id: 1,
+  2: {
+    id: 2,
     name: "Reflexivo",
     icon: "💭",
     color: "text-blue-500",
     min_quality_score: 100,
   },
-  {
-    id: 2,
+  3: {
+    id: 3,
     name: "Pensador",
     icon: "🧠",
     color: "text-purple-500",
     min_quality_score: 500,
   },
-  {
-    id: 3,
+  4: {
+    id: 4,
     name: "Filósofo",
     icon: "📜",
     color: "text-amber-500",
     min_quality_score: 1500,
   },
-  {
-    id: 4,
+  5: {
+    id: 5,
     name: "Sábio",
     icon: "✨",
     color: "text-emerald-500",
     min_quality_score: 3000,
   },
-];
+};

@@ -22,7 +22,14 @@ interface PostCardProps {
 
 export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
   const { profile } = useAuth();
-  const authorLevel = LEVELS[post.author.current_level] || LEVELS[0];
+  const authorLevel = LEVELS[post.author.current_level || 1] ||
+    LEVELS[1] || {
+      id: 1,
+      name: "Iniciante",
+      icon: "🌱",
+      color: "text-gray-500",
+      min_quality_score: 0,
+    };
   const canAccess = !post.is_premium_content || profile?.is_premium;
 
   const getTypeIcon = () => {
