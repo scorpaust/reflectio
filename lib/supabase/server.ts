@@ -31,3 +31,31 @@ export async function createServerSupabaseClient() {
     }
   );
 }
+
+export async function syncGoogleAvatar(userId: string, providerData: any) {
+  const supabase = await createServerSupabaseClient();
+
+  try {
+    // Verificar se o usuário já tem avatar
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("avatar_url")
+      .eq("id", userId)
+      .single();
+
+    // Se já tem avatar, não fazer nada
+    if (profile?.avatar_url) return;
+
+    // Se veio do Google e tem foto
+    const googlePhotoUrl = providerData?.avatar_url || providerData?.picture;
+
+    if (googlePhotoUrl) {
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: googlePhotoUrl })
+        .eq("id", userId);
+    }
+  } catch (error) {
+    console.error("Error syncing Google avatar:", error);
+  }
+}

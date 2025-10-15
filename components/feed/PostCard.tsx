@@ -63,12 +63,12 @@ export function PostCard({ post, onReflect, onUpgrade }: PostCardProps) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-400 rounded-full flex items-center justify-center text-white font-semibold">
+          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-400 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden">
             {post.author.avatar_url ? (
               <img
                 src={post.author.avatar_url}
                 alt={post.author.full_name}
-                className="w-full h-full rounded-full object-cover"
+                className="w-full h-full object-cover"
               />
             ) : (
               getInitials(post.author.full_name)

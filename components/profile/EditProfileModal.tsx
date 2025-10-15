@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { AvatarUpload } from "./AvatarUpload";
 import { createClient } from "@/lib/supabase/client";
 import { UserProfile } from "@/types/user.types";
 
@@ -27,6 +28,7 @@ export function EditProfileModal({
   const [fullName, setFullName] = useState(profile.full_name);
   const [username, setUsername] = useState(profile.username || "");
   const [bio, setBio] = useState(profile.bio || "");
+  const [currentAvatar, setCurrentAvatar] = useState(profile.avatar_url);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +39,19 @@ export function EditProfileModal({
       // Validar username (apenas letras, números e underscore)
       if (username && !/^[a-zA-Z0-9_]+$/.test(username)) {
         throw new Error("Username só pode conter letras, números e underscore");
+      }
+
+      // Verificar se username já existe
+      if (username && username !== profile.username) {
+        const { data: existingUser } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("username", username)
+          .single();
+
+        if (existingUser) {
+          throw new Error("Username já está em uso");
+        }
       }
 
       const { error: updateError } = await supabase
@@ -59,11 +74,17 @@ export function EditProfileModal({
     }
   };
 
+  const handleAvatarUpload = (newAvatarUrl: string | null) => {
+    // Atualizar o estado local do avatar
+    setCurrentAvatar(newAvatarUrl);
+    console.log("Avatar updated:", newAvatarUrl);
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-gray-800">Editar Perfil</h3>
           <button
@@ -82,6 +103,16 @@ export function EditProfileModal({
             {error}
           </div>
         )}
+
+        {/* Avatar Upload Section */}
+        <div className="mb-6 pb-6 border-b border-gray-200">
+          <AvatarUpload
+            userId={profile.id}
+            currentAvatar={currentAvatar}
+            userName={profile.full_name}
+            onUploadComplete={handleAvatarUpload}
+          />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -112,7 +143,8 @@ export function EditProfileModal({
               rows={4}
               maxLength={200}
               disabled={isLoading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none text-gray-900 placeholder-gray-500"
+              style={{ fontSize: "16px", lineHeight: "1.5" }}
             />
             <p className="text-xs text-gray-500 mt-1">
               {bio.length}/200 caracteres

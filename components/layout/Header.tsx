@@ -70,7 +70,6 @@ export function Header() {
             {/* User Menu */}
             <div className="relative">
               <button
-                type="button"
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
@@ -79,12 +78,10 @@ export function Header() {
                     <img
                       src={profile.avatar_url}
                       alt={profile.full_name}
-                      className="w-full h-full rounded-full object-cover"
+                      className="w-full h-full object-cover"
                     />
-                  ) : profile ? (
-                    getInitials(profile.full_name)
                   ) : (
-                    "U"
+                    getInitials(profile?.full_name || "U")
                   )}
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-600" />

@@ -38,15 +38,17 @@ export function UserCard({
       <div className="flex items-start gap-4">
         {/* Avatar */}
         <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-blue-400 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-          {user.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.full_name}
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : (
-            getInitials(user.full_name)
-          )}
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-blue-400 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
+            {user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.full_name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              getInitials(user.full_name)
+            )}
+          </div>
         </div>
 
         {/* Info */}
