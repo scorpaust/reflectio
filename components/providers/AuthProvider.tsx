@@ -36,7 +36,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set a safety timeout to prevent infinite loading
     const safetyTimeout = setTimeout(() => {
       if (mounted) {
-        console.log("⏱️ [AuthProvider] Safety timeout (3s), stopping loading state");
+        console.log(
+          "⏱️ [AuthProvider] Safety timeout (3s), stopping loading state"
+        );
         setIsLoading(false);
       }
     }, 3000);
@@ -48,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("🔐 [AuthProvider] Auth state changed:", {
         event,
         hasSession: !!session,
-        userId: session?.user?.id
+        userId: session?.user?.id,
       });
 
       if (!mounted) return;
@@ -58,7 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        console.log("🔐 [AuthProvider] Fetching profile for user:", session.user.id);
+        console.log(
+          "🔐 [AuthProvider] Fetching profile for user:",
+          session.user.id
+        );
 
         try {
           // Add timeout to profile fetch
@@ -68,22 +73,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .eq("id", session.user.id)
             .single();
 
-          const profileTimeout = new Promise<{ data: null, error: any }>((resolve) => {
-            setTimeout(() => {
-              console.log("⏱️ [AuthProvider] Profile fetch timeout (3s)");
-              resolve({ data: null, error: { message: "Timeout" } });
-            }, 3000);
-          });
+          const profileTimeout = new Promise<{ data: null; error: any }>(
+            (resolve) => {
+              setTimeout(() => {
+                console.log("⏱️ [AuthProvider] Profile fetch timeout (3s)");
+                resolve({ data: null, error: { message: "Timeout" } });
+              }, 3000);
+            }
+          );
 
           const result = await Promise.race([profilePromise, profileTimeout]);
           const { data: profileData, error: profileError } = result;
 
           console.log("🔐 [AuthProvider] Profile result:", {
             hasProfile: !!profileData,
-            error: profileError?.message
+            error: profileError?.message,
           });
 
           if (mounted && profileData) {
+            // Debug: verificar dados do usuário
+            console.log(
+              "🔍 [AuthProvider] User metadata:",
+              session.user.user_metadata
+            );
+            console.log(
+              "🔍 [AuthProvider] Profile avatar_url:",
+              profileData.avatar_url
+            );
+
+            // Verificar se precisa atualizar o avatar do Google
+            const googleAvatarUrl =
+              session.user.user_metadata?.avatar_url ||
+              session.user.user_metadata?.picture;
+            console.log(
+              "🖼️ [AuthProvider] Google avatar URL:",
+              googleAvatarUrl
+            );
+
+            if (googleAvatarUrl && !profileData.avatar_url) {
+              console.log(
+                "🖼️ [AuthProvider] Updating avatar from Google:",
+                googleAvatarUrl
+              );
+
+              // Atualizar avatar no banco
+              supabase
+                .from("profiles")
+                .update({ avatar_url: googleAvatarUrl })
+                .eq("id", session.user.id)
+                .then(({ error }) => {
+                  if (error) {
+                    console.error(
+                      "❌ [AuthProvider] Error updating avatar:",
+                      error
+                    );
+                  } else {
+                    console.log(
+                      "✅ [AuthProvider] Avatar updated successfully"
+                    );
+                    // Atualizar o estado local
+                    setProfile((prev) =>
+                      prev ? { ...prev, avatar_url: googleAvatarUrl } : null
+                    );
+                  }
+                });
+            } else {
+              console.log("🖼️ [AuthProvider] No avatar update needed:", {
+                hasGoogleAvatar: !!googleAvatarUrl,
+                hasProfileAvatar: !!profileData.avatar_url,
+              });
+            }
+
             setProfile(profileData);
           }
         } catch (error) {

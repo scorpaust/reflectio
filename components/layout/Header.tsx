@@ -74,8 +74,18 @@ export function Header() {
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
-                <div className="w-9 h-9 bg-gradient-to-br from-purple-400 to-blue-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                  {profile ? getInitials(profile.full_name) : "U"}
+                <div className="w-9 h-9 bg-gradient-to-br from-purple-400 to-blue-400 rounded-full flex items-center justify-center text-white font-semibold text-sm overflow-hidden">
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.full_name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : profile ? (
+                    getInitials(profile.full_name)
+                  ) : (
+                    "U"
+                  )}
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-600" />
               </button>
