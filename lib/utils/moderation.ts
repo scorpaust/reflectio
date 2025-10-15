@@ -1,10 +1,33 @@
+/**
+ * Utilitários para moderação de conteúdo
+ *
+ * @module lib/utils/moderation
+ * @description
+ * Fornece funções auxiliares para:
+ * - Verificação de palavras bloqueadas
+ * - Aplicação de regras customizadas
+ * - Combinação de resultados de moderação
+ * - Sanitização de texto
+ * - Geração de relatórios
+ */
+
 import {
   ModerationResult,
   ModerationConfig,
   CustomModerationRule,
 } from "@/types/moderation";
 
-// Configuração padrão de moderação
+// ============================================
+// Configurações Padrão
+// ============================================
+
+/**
+ * Configuração padrão do sistema de moderação
+ *
+ * @description
+ * Valores iniciais usados se nenhuma configuração for fornecida.
+ * Pode ser sobrescrito em contextos específicos.
+ */
 export const DEFAULT_MODERATION_CONFIG: ModerationConfig = {
   enableTextModeration: true,
   enableAudioModeration: true,
@@ -51,7 +74,33 @@ export const MODERATION_CATEGORIES_PT = {
   inappropriate: "Conteúdo inadequado",
 };
 
-// Função para verificar palavras bloqueadas localmente
+// ============================================
+// Funções de Verificação
+// ============================================
+
+/**
+ * Verifica se o texto contém palavras bloqueadas
+ *
+ * @description
+ * Realiza verificação case-insensitive de palavras proibidas no texto.
+ * Útil para pré-validação antes de enviar para a API de moderação.
+ *
+ * @param text - Texto a ser verificado
+ * @param blockedWords - Lista de palavras proibidas
+ * @returns Objeto com flag e lista de palavras encontradas
+ *
+ * @example
+ * ```ts
+ * const { hasBlockedWords, foundWords } = checkBlockedWords(
+ *   "Este é um texto de exemplo",
+ *   ["palavra1", "palavra2"]
+ * );
+ *
+ * if (hasBlockedWords) {
+ *   console.log("Palavras bloqueadas encontradas:", foundWords);
+ * }
+ * ```
+ */
 export function checkBlockedWords(
   text: string,
   blockedWords: string[]
@@ -75,7 +124,33 @@ export function checkBlockedWords(
   };
 }
 
-// Função para aplicar regras customizadas
+/**
+ * Aplica regras de moderação customizadas ao texto
+ *
+ * @description
+ * Testa o texto contra um conjunto de regras regex definidas pelo utilizador.
+ * Retorna todas as regras que foram acionadas e a severidade máxima encontrada.
+ *
+ * @param text - Texto a ser verificado
+ * @param rules - Array de regras customizadas com padrões regex
+ * @returns Regras acionadas e nível de severidade máximo
+ *
+ * @example
+ * ```ts
+ * const rules: CustomModerationRule[] = [
+ *   {
+ *     id: '1',
+ *     name: 'caps-lock',
+ *     pattern: '^[A-Z\\s]+$',
+ *     severity: 'low',
+ *     action: 'warn',
+ *     description: 'Texto todo em maiúsculas'
+ *   }
+ * ];
+ *
+ * const { triggeredRules, severity } = applyCustomRules("TEXTO EM CAPS", rules);
+ * ```
+ */
 export function applyCustomRules(
   text: string,
   rules: CustomModerationRule[]
