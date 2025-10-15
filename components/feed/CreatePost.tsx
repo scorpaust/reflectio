@@ -576,7 +576,7 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
 
         {/* Debug: Estado da validação */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 text-gray-800">
             <div>
               Título: {title.trim() ? "✅" : "❌"} (
               {isTitleValid ? "válido" : "inválido"})

@@ -36,7 +36,7 @@ export function ModeratedTextInput({
   const [moderationAction, setModerationAction] =
     useState<ModerationAction | null>(null);
   const [isOverridden, setIsOverridden] = useState(false);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const { moderateText, isLoading } = useModeration({
     strictMode,
@@ -108,6 +108,7 @@ export function ModeratedTextInput({
           className={`
             w-full px-3 py-2 border border-gray-300 rounded-lg resize-none
             focus:ring-2 focus:ring-blue-500 focus:border-transparent
+            text-gray-900 placeholder-gray-500
             ${!isValid ? "border-red-300 bg-red-50" : ""}
             ${className}
           `}
