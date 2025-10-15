@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Plus, MessageCircle, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { ModeratedTextInput } from "@/components/moderation/ModeratedTextInput";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { ReflectionWithAuthor } from "@/types/post.types";
@@ -36,6 +37,7 @@ export function ReflectionModal({
   const [sources, setSources] = useState<string[]>([]);
   const [currentSource, setCurrentSource] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [isContentValid, setIsContentValid] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
@@ -135,6 +137,7 @@ export function ReflectionModal({
       setContent("");
       setSources([]);
       setShowForm(false);
+      setIsContentValid(true);
 
       // Recarregar reflexões
       await fetchReflections();
@@ -193,14 +196,17 @@ export function ReflectionModal({
                 <h4 className="font-semibold text-gray-800">Sua Reflexão</h4>
               </div>
 
-              <textarea
+              <ModeratedTextInput
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={setContent}
+                onValidationChange={setIsContentValid}
                 placeholder="Compartilhe sua reflexão fundamentada..."
                 rows={5}
-                required
-                disabled={isSubmitting}
-                className="w-full px-4 py-3 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none mb-3 text-gray-800"
+                maxLength={2000}
+                strictMode={false}
+                autoModerate={true}
+                debounceMs={1000}
+                className="mb-3"
               />
 
               {/* Sources */}
@@ -213,7 +219,7 @@ export function ReflectionModal({
                     value={currentSource}
                     onChange={(e) => setCurrentSource(e.target.value)}
                     placeholder="Ex: Aristóteles, Ética a Nicômaco"
-                    onKeyPress={(e) => {
+                    onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
                         handleAddSource();
@@ -265,7 +271,12 @@ export function ReflectionModal({
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" isLoading={isSubmitting} size="sm">
+                <Button
+                  type="submit"
+                  isLoading={isSubmitting}
+                  size="sm"
+                  disabled={!content.trim() || !isContentValid}
+                >
                   Publicar Reflexão
                 </Button>
               </div>
