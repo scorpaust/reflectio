@@ -24,6 +24,7 @@ Reflectio é uma plataforma de rede social revolucionária que promove a reflex�
 ## Tecnologias Utilizadas
 
 ### Frontend
+
 - **Next.js 15.5.4** - Framework React com App Router e Turbopack
 - **React 19.1.0** - Biblioteca de interface de utilizador
 - **TypeScript 5.x** - Tipagem estática
@@ -32,12 +33,14 @@ Reflectio é uma plataforma de rede social revolucionária que promove a reflex�
 - **Zustand** - Gestão de estado global
 
 ### Backend e Serviços
+
 - **Supabase** - Backend-as-a-Service (Base de dados PostgreSQL, Autenticação, Storage)
 - **OpenAI API** - Moderação de conteúdo e transcrição de áudio (Whisper)
 - **Stripe** - Processamento de pagamentos
 - **Next.js API Routes** - Endpoints serverless
 
 ### Bibliotecas Auxiliares
+
 - **React Hook Form** - Gestão de formulários
 - **Zod** - Validação de schemas
 - **date-fns** - Manipulação de datas
@@ -248,7 +251,7 @@ Este projeto está licenciado sob a Licença MIT - veja o ficheiro [LICENSE](LIC
 
 **Dinis Costa**
 
-- GitHub: [@dinis-costa](https://github.com/dinis-costa)
+- GitHub: [@scorpaust](https://github.com/scorpaust)
 
 ## Agradecimentos
 

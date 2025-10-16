@@ -87,7 +87,9 @@ npm run test:ci
 ### Componentes Testados
 
 #### ✅ Componentes UI (100% coverage)
+
 - `Button.tsx` - 24 testes
+
   - Variantes (primary, secondary, ghost, danger)
   - Tamanhos (sm, md, lg)
   - Estados (loading, disabled)
@@ -100,6 +102,7 @@ npm run test:ci
   - Validações e acessibilidade
 
 #### ✅ Componentes de Autenticação (100% coverage)
+
 - `LoginForm.tsx` - 20 testes
   - Login com email/senha
   - Login com Google OAuth
@@ -108,12 +111,14 @@ npm run test:ci
   - Console logging
 
 #### ✅ Utilities (100% coverage)
+
 - `utils.ts` - 19 testes
   - `cn()` - merge de classes
   - `formatDate()` - formatação de datas
   - `getInitials()` - extração de iniciais
 
 #### ✅ Hooks (95.36% coverage)
+
 - `useModeration.ts` - 22 testes
   - Moderação de texto
   - Moderação de áudio
@@ -142,6 +147,7 @@ npm run test:e2e:debug
 ### Testes E2E Implementados
 
 #### 🔐 Fluxo de Autenticação (`e2e/auth.spec.ts`)
+
 - ✅ Exibição correta da página de login
 - ✅ Validação de campos obrigatórios
 - ✅ Erro em credenciais inválidas
@@ -155,6 +161,7 @@ npm run test:e2e:debug
 - ✅ Submissão com Enter
 
 #### 🏠 Página Inicial (`e2e/home.spec.ts`)
+
 - ✅ Carregamento da homepage
 - ✅ Acessibilidade
 - ✅ Navegação para login
@@ -188,19 +195,20 @@ coverageThreshold: {
 ### Relatório de Coverage
 
 Após rodar `npm run test:coverage`, o relatório HTML estará disponível em:
+
 ```
 coverage/lcov-report/index.html
 ```
 
 ### Coverage Atual por Arquivo
 
-| Arquivo | Statements | Branches | Functions | Lines |
-|---------|-----------|----------|-----------|-------|
-| Button.tsx | 100% | 100% | 100% | 100% |
-| Input.tsx | 100% | 100% | 100% | 100% |
-| LoginForm.tsx | Alta cobertura | Alta cobertura | Alta cobertura | Alta cobertura |
-| utils.ts | 100% | 100% | 100% | 100% |
-| useModeration.ts | 95.36% | 78.57% | 100% | 95.36% |
+| Arquivo          | Statements     | Branches       | Functions      | Lines          |
+| ---------------- | -------------- | -------------- | -------------- | -------------- |
+| Button.tsx       | 100%           | 100%           | 100%           | 100%           |
+| Input.tsx        | 100%           | 100%           | 100%           | 100%           |
+| LoginForm.tsx    | Alta cobertura | Alta cobertura | Alta cobertura | Alta cobertura |
+| utils.ts         | 100%           | 100%           | 100%           | 100%           |
+| useModeration.ts | 95.36%         | 78.57%         | 100%           | 95.36%         |
 
 ## 🔄 CI/CD
 
@@ -211,6 +219,7 @@ O projeto inclui workflow de CI/CD automatizado (`.github/workflows/tests.yml`):
 #### Jobs Configurados:
 
 1. **unit-tests**
+
    - Roda testes unitários com coverage
    - Upload para Codecov
    - Executa em PRs e pushes para main/develop
@@ -237,61 +246,61 @@ CI=true npm run test:e2e
 
 ```typescript
 // Use queries semânticas
-screen.getByRole('button', { name: /submit/i })
-screen.getByLabelText('Email')
+screen.getByRole("button", { name: /submit/i });
+screen.getByLabelText("Email");
 
 // Teste comportamento do usuário
-await userEvent.click(button)
-await userEvent.type(input, 'text')
+await userEvent.click(button);
+await userEvent.type(input, "text");
 
 // Use waitFor para operações assíncronas
 await waitFor(() => {
-  expect(screen.getByText('Success')).toBeInTheDocument()
-})
+  expect(screen.getByText("Success")).toBeInTheDocument();
+});
 
 // Teste acessibilidade
-expect(button).toHaveAttribute('aria-label', 'Close')
+expect(button).toHaveAttribute("aria-label", "Close");
 ```
 
 #### ❌ DON'T:
 
 ```typescript
 // Evite selecionar por classes ou IDs
-container.querySelector('.my-class')
+container.querySelector(".my-class");
 
 // Evite testar detalhes de implementação
-expect(component.state.value).toBe('test')
+expect(component.state.value).toBe("test");
 
 // Evite timeouts fixos
-await new Promise(resolve => setTimeout(resolve, 1000))
+await new Promise((resolve) => setTimeout(resolve, 1000));
 ```
 
 ### Organizando Testes
 
 ```typescript
-describe('ComponentName', () => {
-  describe('Feature Group', () => {
+describe("ComponentName", () => {
+  describe("Feature Group", () => {
     beforeEach(() => {
       // Setup comum
-    })
+    });
 
-    it('should do something specific', () => {
+    it("should do something specific", () => {
       // Teste focado e descritivo
-    })
-  })
-})
+    });
+  });
+});
 ```
 
 ### Mocking
 
 ```typescript
 // Mock de módulos
-jest.mock('@/lib/supabase/client')
+jest.mock("@/lib/supabase/client");
 
 // Mock de funções
-const mockFn = jest.fn()
-mockFn.mockResolvedValue({ data: 'test' })
-mockFn.mockRejectedValue(new Error('fail'))
+const mockFn = jest.fn();
+mockFn.mockResolvedValue({ data: "test" });
+mockFn.mockRejectedValue(new Error("fail"));
 ```
 
 ## 🐛 Debugging
@@ -324,21 +333,27 @@ npx playwright show-trace trace.zip
 ### Identificação e Correção
 
 1. **Timeouts**: Aumente timeouts para operações lentas
+
 ```typescript
-await waitFor(() => {
-  expect(element).toBeVisible()
-}, { timeout: 10000 })
+await waitFor(
+  () => {
+    expect(element).toBeVisible();
+  },
+  { timeout: 10000 }
+);
 ```
 
 2. **Race Conditions**: Use `waitFor` e `waitForOptions`
+
 ```typescript
-await page.waitForLoadState('networkidle')
+await page.waitForLoadState("networkidle");
 ```
 
 3. **Dados Dinâmicos**: Mocke datas, IDs e dados aleatórios
+
 ```typescript
-jest.useFakeTimers()
-jest.setSystemTime(new Date('2024-01-01'))
+jest.useFakeTimers();
+jest.setSystemTime(new Date("2024-01-01"));
 ```
 
 ## 📚 Recursos
@@ -358,5 +373,5 @@ jest.setSystemTime(new Date('2024-01-01'))
 
 ---
 
-**Mantido por:** Equipe Reflectio
+**Mantido por:** Reflectio
 **Última atualização:** 2025-10-15
