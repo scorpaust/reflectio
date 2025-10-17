@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { UserPosts } from "@/components/profile/UserPosts";
@@ -20,12 +20,48 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { SubscriptionManager } from "@/components/premium/SubscriptionManager";
+import { PremiumBanner } from "@/components/premium/PremiumBanner";
+import { PremiumModal } from "@/components/premium/PremiumModal";
 
 export default function ProfilePage() {
   const { profile, signOut } = useAuth();
   const supabase = createClient();
   const [showEditModal, setShowEditModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+
+  // Estados para controlar o processo de pagamento
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
+
+  // useEffect simplificado - sem APIs que estão falhando
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get("success");
+    const canceled = urlParams.get("canceled");
+
+    if (success) {
+      setPaymentMessage(
+        "✅ Pagamento realizado! Use o botão '🚀 Forçar Premium' abaixo para ativar."
+      );
+      localStorage.removeItem("stripe_session_id");
+      window.history.replaceState({}, "", "/profile");
+
+      // Manter mensagem por mais tempo
+      setTimeout(() => {
+        setPaymentMessage("");
+      }, 15000);
+    } else if (canceled) {
+      setPaymentMessage("❌ Pagamento cancelado.");
+      localStorage.removeItem("stripe_session_id");
+      window.history.replaceState({}, "", "/profile");
+
+      setTimeout(() => {
+        setPaymentMessage("");
+      }, 5000);
+    }
+  }, []);
 
   if (!profile) {
     return (
@@ -78,6 +114,25 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
+      {/* Banner de status do pagamento */}
+      {(isProcessingPayment || paymentMessage) && (
+        <div
+          className={`rounded-lg p-4 text-center font-medium ${
+            paymentMessage.includes("✅")
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : paymentMessage.includes("❌")
+              ? "bg-red-50 border border-red-200 text-red-800"
+              : "bg-blue-50 border border-blue-200 text-blue-800"
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2">
+            {isProcessingPayment && (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+            )}
+            <span>{paymentMessage}</span>
+          </div>
+        </div>
+      )}
       {/* Header Card */}
       <Card>
         <div className="flex flex-col md:flex-row gap-6">
@@ -180,36 +235,272 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      {/* Premium Info */}
-      {profile.is_premium && (
-        <Card>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center">
-                <Crown className="w-6 h-6 text-white" />
+      {/* Premium Management */}
+      {profile.is_premium ? (
+        <SubscriptionManager
+          isPremium={profile.is_premium}
+          premiumSince={profile.premium_since}
+          premiumExpiresAt={profile.premium_expires_at}
+        />
+      ) : (
+        <div className="space-y-4">
+          <PremiumBanner onUpgrade={() => setShowPremiumModal(true)} />
+
+          {/* Painel de Debug e Testes */}
+          <Card>
+            <div className="p-4">
+              <h3 className="font-semibold text-gray-800 mb-3">
+                🔧 Painel de Debug
+              </h3>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch("/api/debug/profile");
+                      const data = await response.json();
+                      console.log("Profile Debug:", data);
+                      alert(
+                        `Status atual: ${
+                          data.profile?.is_premium ? "Premium ✅" : "Free ❌"
+                        }\nVer console para detalhes completos.`
+                      );
+                    } catch (error) {
+                      console.error("Erro:", error);
+                      alert("❌ Erro ao verificar perfil");
+                    }
+                  }}
+                  variant="secondary"
+                  size="sm"
+                >
+                  🔍 Verificar Status
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch("/api/debug/profile", {
+                        method: "POST",
+                      });
+                      const data = await response.json();
+                      console.log("Update Result:", data);
+
+                      if (data.success) {
+                        alert("✅ Premium ativado! Recarregando página...");
+                        setTimeout(() => window.location.reload(), 1000);
+                      } else {
+                        alert(`❌ Erro: ${data.error}`);
+                      }
+                    } catch (error) {
+                      console.error("Erro:", error);
+                      alert("❌ Erro ao ativar Premium");
+                    }
+                  }}
+                  variant="secondary"
+                  size="sm"
+                >
+                  🚀 Forçar Premium
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(
+                        "/api/debug/deactivate-premium",
+                        {
+                          method: "POST",
+                        }
+                      );
+                      const data = await response.json();
+                      console.log("Deactivate Result:", data);
+
+                      if (data.success) {
+                        alert("✅ Premium desativado! Recarregando página...");
+                        setTimeout(() => window.location.reload(), 1000);
+                      } else {
+                        alert(`❌ Erro: ${data.error}`);
+                      }
+                    } catch (error) {
+                      console.error("Erro:", error);
+                      alert("❌ Erro ao desativar Premium");
+                    }
+                  }}
+                  variant="danger"
+                  size="sm"
+                >
+                  ❌ Desativar Premium
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    const sessionId = localStorage.getItem("stripe_session_id");
+                    if (sessionId) {
+                      console.log("Session ID encontrado:", sessionId);
+                      alert(
+                        `Session ID: ${sessionId}\nVer console para detalhes.`
+                      );
+                    } else {
+                      alert("❌ Nenhum Session ID encontrado no localStorage");
+                    }
+                  }}
+                  variant="secondary"
+                  size="sm"
+                >
+                  📋 Ver Session ID
+                </Button>
               </div>
-              <div>
-                <h3 className="font-bold text-gray-800 text-lg">
-                  Membro Premium
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {profile.premium_expires_at
-                    ? `Renovação em ${formatDate(profile.premium_expires_at)}`
-                    : "Assinatura ativa"}
+
+              <div className="mt-3 text-xs text-gray-500">
+                <p>
+                  • <strong>Verificar Status:</strong> Mostra o status atual do
+                  perfil
+                </p>
+                <p>
+                  • <strong>Forçar Premium:</strong> Ativa Premium diretamente
+                  no banco
+                </p>
+                <p>
+                  • <strong>Desativar Premium:</strong> Remove Premium e volta
+                  para Free
+                </p>
+                <p>
+                  • <strong>Ver Session ID:</strong> Verifica se há session do
+                  Stripe salvo
                 </p>
               </div>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Painel de Debug - Sempre visível */}
+      <Card>
+        <div className="p-4">
+          <h3 className="font-semibold text-gray-800 mb-3">
+            🔧 Painel de Debug
+          </h3>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/debug/profile");
+                  const data = await response.json();
+                  console.log("Profile Debug:", data);
+                  alert(
+                    `Status atual: ${
+                      data.profile?.is_premium ? "Premium ✅" : "Free ❌"
+                    }\nVer console para detalhes completos.`
+                  );
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao verificar perfil");
+                }
+              }}
+              variant="secondary"
               size="sm"
-              variant="ghost"
-              onClick={handleCancelPremium}
-              disabled={isLoading}
             >
-              Cancelar Premium
+              🔍 Verificar Status
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/debug/profile", {
+                    method: "POST",
+                  });
+                  const data = await response.json();
+                  console.log("Update Result:", data);
+
+                  if (data.success) {
+                    alert("✅ Premium ativado! Recarregando página...");
+                    setTimeout(() => window.location.reload(), 1000);
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao ativar Premium");
+                }
+              }}
+              variant="secondary"
+              size="sm"
+            >
+              🚀 Forçar Premium
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch(
+                    "/api/debug/deactivate-premium",
+                    {
+                      method: "POST",
+                    }
+                  );
+                  const data = await response.json();
+                  console.log("Deactivate Result:", data);
+
+                  if (data.success) {
+                    alert("✅ Premium desativado! Recarregando página...");
+                    setTimeout(() => window.location.reload(), 1000);
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao desativar Premium");
+                }
+              }}
+              variant="danger"
+              size="sm"
+            >
+              ❌ Desativar Premium
+            </Button>
+
+            <Button
+              onClick={() => {
+                const sessionId = localStorage.getItem("stripe_session_id");
+                if (sessionId) {
+                  console.log("Session ID encontrado:", sessionId);
+                  alert(`Session ID: ${sessionId}\nVer console para detalhes.`);
+                } else {
+                  alert("❌ Nenhum Session ID encontrado no localStorage");
+                }
+              }}
+              variant="secondary"
+              size="sm"
+            >
+              📋 Ver Session ID
             </Button>
           </div>
-        </Card>
-      )}
+
+          <div className="mt-3 text-xs text-gray-500">
+            <p>
+              • <strong>Verificar Status:</strong> Mostra o status atual do
+              perfil
+            </p>
+            <p>
+              • <strong>Forçar Premium:</strong> Ativa Premium diretamente no
+              banco
+            </p>
+            <p>
+              • <strong>Desativar Premium:</strong> Remove Premium e volta para
+              Free
+            </p>
+            <p>
+              • <strong>Ver Session ID:</strong> Verifica se há session do
+              Stripe salvo
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Modal Premium */}
+      <PremiumModal
+        isOpen={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

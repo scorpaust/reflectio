@@ -1,8 +1,10 @@
 "use client";
 
-import { Crown, Check, X } from "lucide-react";
+import { useState } from "react";
+import { Crown, Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { PREMIUM_PRICES } from "@/lib/constants";
+import { PRICES, PRICE_IDS } from "@/lib/stripe/client";
+import { useRouter } from "next/navigation";
 
 interface PremiumModalProps {
   isOpen: boolean;
@@ -10,16 +12,68 @@ interface PremiumModalProps {
 }
 
 export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly" | null>(
+    null
+  );
+  const [error, setError] = useState("");
+
+  const handleCheckout = async (
+    priceId: string,
+    plan: "monthly" | "yearly"
+  ) => {
+    try {
+      setError("");
+      setIsLoading(true);
+      setSelectedPlan(plan);
+
+      // Chamar API para criar sessão de checkout
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ priceId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao criar sessão de checkout");
+      }
+
+      // Armazenar session ID para verificação posterior
+      if (data.sessionId) {
+        localStorage.setItem("stripe_session_id", data.sessionId);
+      }
+
+      // Redirecionar para Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("URL de checkout não encontrada");
+      }
+    } catch (error: any) {
+      console.error("Erro no checkout:", error);
+      setError(
+        error.message || "Erro ao processar pagamento. Tente novamente."
+      );
+      setIsLoading(false);
+      setSelectedPlan(null);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
-          type="button"
-          title="X"
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+          disabled={isLoading}
+          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+          aria-label="Fechar modal"
         >
           <X className="w-5 h-5 text-gray-600" />
         </button>
@@ -33,6 +87,12 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
             Aprofunde sua jornada de crescimento intelectual
           </p>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
+            {error}
+          </div>
+        )}
 
         <div className="space-y-4 mb-8">
           <div className="flex items-start gap-3">
@@ -51,9 +111,9 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
           <div className="flex items-start gap-3">
             <Check className="w-6 h-6 text-emerald-500 flex-shrink-0 mt-1" />
             <div>
-              <h3 className="font-semibold text-gray-800">Solicite Conexões</h3>
+              <h3 className="font-semibold text-gray-800">Posts de Áudio</h3>
               <p className="text-gray-600 text-sm">
-                Conecte-se ativamente com pensadores do seu nível ou inferior
+                Grave e compartilhe reflexões em formato de áudio
               </p>
             </div>
           </div>
@@ -62,11 +122,10 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
             <Check className="w-6 h-6 text-emerald-500 flex-shrink-0 mt-1" />
             <div>
               <h3 className="font-semibold text-gray-800">
-                Acesso às Bibliotecas
+                Reflexões Ilimitadas
               </h3>
               <p className="text-gray-600 text-sm">
-                Explore toda a biblioteca pessoal das suas conexões enquanto for
-                Premium
+                Comente e reflita sobre todos os conteúdos da comunidade
               </p>
             </div>
           </div>
@@ -75,61 +134,82 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
             <Check className="w-6 h-6 text-emerald-500 flex-shrink-0 mt-1" />
             <div>
               <h3 className="font-semibold text-gray-800">
-                Crie Reflexões Ilimitadas
+                Acesso Prioritário
               </h3>
               <p className="text-gray-600 text-sm">
-                Participe ativamente das discussões e evolua seu nível
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <Check className="w-6 h-6 text-emerald-500 flex-shrink-0 mt-1" />
-            <div>
-              <h3 className="font-semibold text-gray-800">
-                Ferramentas Avançadas
-              </h3>
-              <p className="text-gray-600 text-sm">
-                Estatísticas de crescimento e insights sobre suas reflexões
+                Seja o primeiro a ver novos recursos e conteúdos exclusivos
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="border-2 border-purple-200 rounded-xl p-6 hover:border-purple-400 transition-colors cursor-pointer">
-            <div className="text-center">
-              <p className="text-gray-600 text-sm mb-1">Mensal</p>
-              <p className="text-3xl font-bold text-gray-800 mb-1">
-                €{PREMIUM_PRICES.MONTHLY.toFixed(2)}
-              </p>
-              <p className="text-gray-500 text-xs mb-4">por mês</p>
-              <Button className="w-full">Escolher Mensal</Button>
+        {/* Planos de Preços */}
+        <div className="grid md:grid-cols-2 gap-4 mb-8">
+          {/* Plano Mensal */}
+          <div className="border-2 border-gray-200 rounded-xl p-6 hover:border-amber-300 transition-colors">
+            <div className="text-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Mensal</h3>
+              <div className="mt-2">
+                <span className="text-3xl font-bold text-gray-900">€9,90</span>
+                <span className="text-gray-600">/mês</span>
+              </div>
             </div>
+            <Button
+              onClick={() => handleCheckout(PRICE_IDS.monthly, "monthly")}
+              disabled={isLoading}
+              className="w-full"
+              variant={selectedPlan === "monthly" ? "primary" : "secondary"}
+            >
+              {isLoading && selectedPlan === "monthly" ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Processando...
+                </>
+              ) : (
+                "Escolher Mensal"
+              )}
+            </Button>
           </div>
 
-          <div className="border-2 border-amber-400 rounded-xl p-6 bg-amber-50 relative hover:border-amber-500 transition-colors cursor-pointer">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white text-xs px-3 py-1 rounded-full font-semibold">
-              Poupe 20%
+          {/* Plano Anual */}
+          <div className="border-2 border-amber-300 rounded-xl p-6 relative bg-gradient-to-br from-amber-50 to-orange-50">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                MAIS POPULAR
+              </span>
             </div>
-            <div className="text-center">
-              <p className="text-gray-600 text-sm mb-1">Anual</p>
-              <p className="text-3xl font-bold text-gray-800 mb-1">
-                €{PREMIUM_PRICES.ANNUAL.toFixed(2)}
+            <div className="text-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Anual</h3>
+              <div className="mt-2">
+                <span className="text-3xl font-bold text-gray-900">€95,00</span>
+                <span className="text-gray-600">/ano</span>
+              </div>
+              <p className="text-sm text-emerald-600 font-semibold mt-1">
+                Economize €23,80
               </p>
-              <p className="text-gray-500 text-xs mb-4">
-                €{(PREMIUM_PRICES.ANNUAL / 12).toFixed(2)}/mês
-              </p>
-              <Button className="w-full bg-gradient-to-r from-amber-500 to-amber-600">
-                Escolher Anual
-              </Button>
             </div>
+            <Button
+              onClick={() => handleCheckout(PRICE_IDS.yearly, "yearly")}
+              disabled={isLoading}
+              className="w-full"
+              variant={selectedPlan === "yearly" ? "primary" : "primary"}
+            >
+              {isLoading && selectedPlan === "yearly" ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Processando...
+                </>
+              ) : (
+                "Escolher Anual"
+              )}
+            </Button>
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-500">
-          Cancele a qualquer momento. Todos os pagamentos são seguros.
-        </p>
+        <div className="text-center text-sm text-gray-500">
+          <p>Cancele a qualquer momento. Sem compromisso.</p>
+          <p className="mt-1">Pagamento seguro processado pelo Stripe.</p>
+        </div>
       </div>
     </div>
   );
