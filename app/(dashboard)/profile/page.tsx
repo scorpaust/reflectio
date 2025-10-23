@@ -18,6 +18,9 @@ import {
   Users,
   Crown,
   TrendingUp,
+  CheckCircle,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SubscriptionManager } from "@/components/premium/SubscriptionManager";
@@ -25,43 +28,198 @@ import { PremiumBanner } from "@/components/premium/PremiumBanner";
 import { PremiumModal } from "@/components/premium/PremiumModal";
 
 export default function ProfilePage() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const supabase = createClient();
   const [showEditModal, setShowEditModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<{
+    type: "success" | "canceled" | "processing" | null;
+    message: string;
+  }>({ type: null, message: "" });
 
-  // Estados para controlar o processo de pagamento
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [paymentMessage, setPaymentMessage] = useState("");
-
-  // useEffect simplificado - sem APIs que estão falhando
+  // useEffect para lidar com retorno do Stripe
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get("success");
     const canceled = urlParams.get("canceled");
 
     if (success) {
-      setPaymentMessage(
-        "✅ Pagamento realizado! Use o botão '🚀 Forçar Premium' abaixo para ativar."
-      );
-      localStorage.removeItem("stripe_session_id");
+      // Limpar URL imediatamente
       window.history.replaceState({}, "", "/profile");
 
-      // Manter mensagem por mais tempo
-      setTimeout(() => {
-        setPaymentMessage("");
-      }, 15000);
+      // Mostrar mensagem de processamento
+      setPaymentStatus({
+        type: "processing",
+        message: "🔄 Processando pagamento... Aguarde alguns segundos.",
+      });
+
+      // Verificar status premium periodicamente
+      let attempts = 0;
+      const maxAttempts = 10;
+      const checkInterval = setInterval(async () => {
+        attempts++;
+
+        try {
+          // Verificar se há session ID salvo
+          const sessionId = localStorage.getItem("stripe_session_id");
+
+          if (sessionId) {
+            // Em desenvolvimento, tentar simular sucesso após algumas tentativas
+            const isDevelopment = process.env.NODE_ENV !== "production";
+
+            if (isDevelopment && attempts >= 3) {
+              // Simular sucesso em desenvolvimento
+              const simulateResponse = await fetch(
+                "/api/stripe/simulate-success",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ sessionId }),
+                }
+              );
+
+              if (simulateResponse.ok) {
+                clearInterval(checkInterval);
+                localStorage.removeItem("stripe_session_id");
+
+                setPaymentStatus({
+                  type: "success",
+                  message:
+                    "🧪 [DEV] Pagamento simulado! Bem-vindo ao Reflectio Premium!",
+                });
+
+                // Refresh do perfil
+                if (refreshProfile) {
+                  await refreshProfile();
+                }
+
+                setTimeout(() => {
+                  setPaymentStatus({ type: null, message: "" });
+                }, 5000);
+
+                setTimeout(() => {
+                  window.location.reload();
+                }, 2000);
+                return;
+              }
+            }
+
+            // Tentar API de verificação normal (funciona se webhooks estiverem configurados)
+            const response = await fetch("/api/stripe/verify-payment", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ sessionId }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+
+              if (data.payment_completed) {
+                clearInterval(checkInterval);
+                localStorage.removeItem("stripe_session_id");
+
+                setPaymentStatus({
+                  type: "success",
+                  message:
+                    "🎉 Pagamento confirmado! Bem-vindo ao Reflectio Premium!",
+                });
+
+                // Refresh do perfil
+                if (refreshProfile) {
+                  await refreshProfile();
+                }
+
+                setTimeout(() => {
+                  setPaymentStatus({ type: null, message: "" });
+                }, 5000);
+
+                setTimeout(() => {
+                  window.location.reload();
+                }, 2000);
+                return;
+              }
+            }
+          }
+
+          // Fallback: verificar diretamente no banco
+          const { data: updatedProfile } = await supabase
+            .from("profiles")
+            .select("is_premium, premium_since")
+            .eq("id", profile?.id)
+            .single();
+
+          if (updatedProfile?.is_premium) {
+            clearInterval(checkInterval);
+            localStorage.removeItem("stripe_session_id"); // Limpar session ID
+
+            setPaymentStatus({
+              type: "success",
+              message:
+                "🎉 Pagamento confirmado! Bem-vindo ao Reflectio Premium!",
+            });
+
+            // Refresh do perfil
+            if (refreshProfile) {
+              await refreshProfile();
+            }
+
+            // Limpar mensagem após 5 segundos
+            setTimeout(() => {
+              setPaymentStatus({ type: null, message: "" });
+            }, 5000);
+
+            // Recarregar página para mostrar interface premium
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            setPaymentStatus({
+              type: "success",
+              message:
+                "✅ Pagamento processado! Se não vir o Premium ativo, recarregue a página.",
+            });
+
+            setTimeout(() => {
+              window.location.reload();
+            }, 3000);
+          }
+        } catch (error) {
+          console.error("Erro ao verificar status premium:", error);
+          if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            setPaymentStatus({
+              type: "success",
+              message: "✅ Pagamento processado! Recarregando página...",
+            });
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          }
+        }
+      }, 2000); // Verificar a cada 2 segundos
     } else if (canceled) {
-      setPaymentMessage("❌ Pagamento cancelado.");
-      localStorage.removeItem("stripe_session_id");
+      // Limpar URL
       window.history.replaceState({}, "", "/profile");
 
+      // Mostrar mensagem de cancelamento
+      setPaymentStatus({
+        type: "canceled",
+        message:
+          "❌ Pagamento cancelado. Você pode tentar novamente quando quiser.",
+      });
+
+      // Limpar mensagem após 5 segundos
       setTimeout(() => {
-        setPaymentMessage("");
+        setPaymentStatus({ type: null, message: "" });
       }, 5000);
     }
-  }, []);
+  }, [profile?.id, refreshProfile, supabase]);
 
   if (!profile) {
     return (
@@ -115,21 +273,27 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       {/* Banner de status do pagamento */}
-      {(isProcessingPayment || paymentMessage) && (
+      {paymentStatus.type && (
         <div
-          className={`rounded-lg p-4 text-center font-medium ${
-            paymentMessage.includes("✅")
+          className={`rounded-lg p-4 text-center font-medium transition-all duration-300 ${
+            paymentStatus.type === "success"
               ? "bg-green-50 border border-green-200 text-green-800"
-              : paymentMessage.includes("❌")
+              : paymentStatus.type === "canceled"
               ? "bg-red-50 border border-red-200 text-red-800"
               : "bg-blue-50 border border-blue-200 text-blue-800"
           }`}
         >
           <div className="flex items-center justify-center gap-2">
-            {isProcessingPayment && (
-              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+            {paymentStatus.type === "processing" && (
+              <Loader2 className="w-5 h-5 animate-spin" />
             )}
-            <span>{paymentMessage}</span>
+            {paymentStatus.type === "success" && (
+              <CheckCircle className="w-5 h-5" />
+            )}
+            {paymentStatus.type === "canceled" && (
+              <XCircle className="w-5 h-5" />
+            )}
+            <span>{paymentStatus.message}</span>
           </div>
         </div>
       )}
@@ -380,7 +544,7 @@ export default function ProfilePage() {
             🔧 Painel de Debug
           </h3>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Button
               onClick={async () => {
                 try {
@@ -401,6 +565,40 @@ export default function ProfilePage() {
               size="sm"
             >
               🔍 Verificar Status
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const sessionId = `cs_test_${Date.now()}`;
+                  localStorage.setItem("stripe_session_id", sessionId);
+
+                  const response = await fetch("/api/stripe/simulate-success", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ sessionId }),
+                  });
+
+                  const data = await response.json();
+                  console.log("Simulate Result:", data);
+
+                  if (data.success) {
+                    alert("🧪 Pagamento simulado! Recarregando página...");
+                    setTimeout(() => window.location.reload(), 1000);
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao simular pagamento");
+                }
+              }}
+              variant="primary"
+              size="sm"
+            >
+              🧪 Simular Pagamento
             </Button>
 
             <Button

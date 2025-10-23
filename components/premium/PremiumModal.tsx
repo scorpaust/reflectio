@@ -50,7 +50,13 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
 
       // Redirecionar para Stripe Checkout
       if (data.url) {
-        window.location.href = data.url;
+        // Mostrar mensagem de redirecionamento
+        setError("🔄 Redirecionando para o pagamento seguro...");
+
+        // Pequeno delay para mostrar a mensagem
+        setTimeout(() => {
+          window.location.href = data.url;
+        }, 1000);
       } else {
         throw new Error("URL de checkout não encontrada");
       }

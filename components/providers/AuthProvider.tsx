@@ -12,6 +12,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   isLoading: true,
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -174,8 +176,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push(ROUTES.LOGIN);
   };
 
+  const refreshProfile = async () => {
+    if (!user) return;
+
+    try {
+      console.log("🔄 [AuthProvider] Refreshing profile for user:", user.id);
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) {
+        console.error(
+          "❌ [AuthProvider] Error refreshing profile:",
+          profileError
+        );
+        return;
+      }
+
+      if (profileData) {
+        console.log("✅ [AuthProvider] Profile refreshed successfully");
+        setProfile(profileData);
+      }
+    } catch (error) {
+      console.error("❌ [AuthProvider] Error in refreshProfile:", error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, isLoading, signOut }}>
+    <AuthContext.Provider
+      value={{ user, profile, isLoading, signOut, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

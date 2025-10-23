@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+// API para simular sucesso de pagamento em desenvolvimento
 export async function POST(request: NextRequest) {
+  // Só funciona em desenvolvimento
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "Esta API só funciona em desenvolvimento" },
+      { status: 403 }
+    );
+  }
+
   try {
+    const { sessionId } = await request.json();
+
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "Session ID é obrigatório" },
+        { status: 400 }
+      );
+    }
+
     // Verificar se o usuário está autenticado
     const supabase = await createServerSupabaseClient();
 
@@ -18,15 +36,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ativar Premium diretamente (para testes ou quando webhook falha)
+    // Simular ativação do Premium (como se o webhook tivesse funcionado)
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
         is_premium: true,
+        stripe_subscription_id: `sub_test_${Date.now()}`, // ID fictício para teste
         premium_since: new Date().toISOString(),
         premium_expires_at: new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 30 dias
+          Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 dias
+        ).toISOString(),
       })
       .eq("id", user.id);
 
@@ -38,14 +57,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ Premium ativado manualmente para usuário: ${user.id}`);
+    console.log(`🧪 [DEV] Premium ativado para usuário: ${user.id}`);
 
     return NextResponse.json({
       success: true,
-      message: "Premium ativado com sucesso",
+      message: "Premium ativado com sucesso (modo desenvolvimento)",
+      user_id: user.id,
+      session_id: sessionId,
     });
   } catch (error: any) {
-    console.error("Erro ao ativar Premium:", error);
+    console.error("Erro ao simular sucesso:", error);
     return NextResponse.json(
       { error: error.message || "Erro interno do servidor" },
       { status: 500 }
