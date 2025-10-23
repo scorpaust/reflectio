@@ -26,6 +26,7 @@ import { createClient } from "@/lib/supabase/client";
 import { SubscriptionManager } from "@/components/premium/SubscriptionManager";
 import { PremiumBanner } from "@/components/premium/PremiumBanner";
 import { PremiumModal } from "@/components/premium/PremiumModal";
+import { ExpirationWarning } from "@/components/premium/ExpirationWarning";
 
 export default function ProfilePage() {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -399,6 +400,12 @@ export default function ProfilePage() {
         </div>
       </Card>
 
+      {/* Aviso de Expiração */}
+      <ExpirationWarning
+        premiumExpiresAt={profile.premium_expires_at}
+        onRenew={() => setShowPremiumModal(true)}
+      />
+
       {/* Premium Management */}
       {profile.is_premium ? (
         <SubscriptionManager
@@ -421,17 +428,41 @@ export default function ProfilePage() {
                 <Button
                   onClick={async () => {
                     try {
+                      console.log("🔍 Verificando status do perfil...");
+
                       const response = await fetch("/api/debug/profile");
+
+                      if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error("Response error:", errorText);
+                        throw new Error(
+                          `HTTP ${response.status}: ${errorText}`
+                        );
+                      }
+
                       const data = await response.json();
                       console.log("Profile Debug:", data);
-                      alert(
-                        `Status atual: ${
-                          data.profile?.is_premium ? "Premium ✅" : "Free ❌"
-                        }\nVer console para detalhes completos.`
-                      );
+
+                      if (data.success) {
+                        alert(
+                          `📊 Status do Perfil:\n\n` +
+                            `• Premium: ${
+                              data.profile?.is_premium
+                                ? "✅ Ativo"
+                                : "❌ Inativo"
+                            }\n` +
+                            `• Status: ${data.premium_status}\n` +
+                            `• Email: ${data.profile?.email}\n` +
+                            `• Nível: ${data.profile?.current_level || 1}\n` +
+                            `• Posts: ${data.profile?.total_posts || 0}\n\n` +
+                            `Ver console para detalhes completos.`
+                        );
+                      } else {
+                        alert(`❌ Erro: ${data.error}`);
+                      }
                     } catch (error) {
-                      console.error("Erro:", error);
-                      alert("❌ Erro ao verificar perfil");
+                      console.error("Erro completo:", error);
+                      alert(`❌ Erro ao verificar perfil: ${error.message}`);
                     }
                   }}
                   variant="secondary"
@@ -520,6 +551,22 @@ export default function ProfilePage() {
                   perfil
                 </p>
                 <p>
+                  • <strong>Simular Local:</strong> Ativa Premium de teste
+                  (cancelamento imediato)
+                </p>
+                <p>
+                  • <strong>Simular Real:</strong> Simula subscrição real
+                  (cancelamento agendado)
+                </p>
+                <p>
+                  • <strong>Testar Portal:</strong> Cria customer e testa portal
+                  do Stripe
+                </p>
+                <p>
+                  • <strong>Portal Direto:</strong> Abre portal mesmo com
+                  problemas de auth
+                </p>
+                <p>
                   • <strong>Forçar Premium:</strong> Ativa Premium diretamente
                   no banco
                 </p>
@@ -544,7 +591,7 @@ export default function ProfilePage() {
             🔧 Painel de Debug
           </h3>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-11 gap-3">
             <Button
               onClick={async () => {
                 try {
@@ -585,7 +632,9 @@ export default function ProfilePage() {
                   console.log("Simulate Result:", data);
 
                   if (data.success) {
-                    alert("🧪 Pagamento simulado! Recarregando página...");
+                    alert(
+                      "🧪 Pagamento simulado (teste local)! Recarregando página..."
+                    );
                     setTimeout(() => window.location.reload(), 1000);
                   } else {
                     alert(`❌ Erro: ${data.error}`);
@@ -598,7 +647,105 @@ export default function ProfilePage() {
               variant="primary"
               size="sm"
             >
-              🧪 Simular Pagamento
+              🧪 Simular Local
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch(
+                    "/api/debug/simulate-real-subscription",
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({ planType: "monthly" }),
+                    }
+                  );
+
+                  const data = await response.json();
+                  console.log("Real Sim Result:", data);
+
+                  if (data.success) {
+                    alert(
+                      "🎭 Subscrição REAL simulada (mensal)! Recarregando página..."
+                    );
+                    setTimeout(() => window.location.reload(), 1000);
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao simular subscrição real");
+                }
+              }}
+              variant="secondary"
+              size="sm"
+            >
+              🎭 Simular Real (Mensal)
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch(
+                    "/api/debug/simulate-real-subscription",
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({ planType: "yearly" }),
+                    }
+                  );
+
+                  const data = await response.json();
+                  console.log("Real Sim Result:", data);
+
+                  if (data.success) {
+                    alert(
+                      "🎭 Subscrição REAL simulada (anual)! Recarregando página..."
+                    );
+                    setTimeout(() => window.location.reload(), 1000);
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao simular subscrição real");
+                }
+              }}
+              variant="secondary"
+              size="sm"
+            >
+              🎭 Simular Real (Anual)
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/debug/test-portal", {
+                    method: "POST",
+                  });
+                  const data = await response.json();
+                  console.log("Portal Test Result:", data);
+
+                  if (data.success && data.url) {
+                    alert("🧪 Portal de teste criado! Redirecionando...");
+                    window.location.href = data.url;
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao testar portal");
+                }
+              }}
+              variant="secondary"
+              size="sm"
+            >
+              🔗 Testar Portal
             </Button>
 
             <Button
@@ -654,6 +801,122 @@ export default function ProfilePage() {
               size="sm"
             >
               ❌ Desativar Premium
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  // Portal direto que funciona mesmo com problemas de auth
+                  const response = await fetch("/api/debug/test-portal", {
+                    method: "POST",
+                  });
+                  const data = await response.json();
+                  console.log("Portal Direto:", data);
+
+                  if (data.success && data.url) {
+                    alert("🔗 Portal direto funcionando! Abrindo...");
+                    window.open(data.url, "_blank");
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao testar portal direto");
+                }
+              }}
+              variant="primary"
+              size="sm"
+            >
+              🔗 Portal Direto
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch(
+                    "/api/stripe/cancel-subscription",
+                    {
+                      method: "POST",
+                    }
+                  );
+                  const data = await response.json();
+                  console.log("Cancel Test:", data);
+
+                  if (data.success) {
+                    if (data.immediate_cancellation) {
+                      alert("🧪 Cancelamento imediato (conta de teste)");
+                      setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                      alert(
+                        `✅ Cancelamento agendado! Premium mantido até: ${new Date(
+                          data.expires_at
+                        ).toLocaleDateString()}`
+                      );
+                    }
+                  } else {
+                    alert(`❌ Erro: ${data.error}`);
+                  }
+                } catch (error) {
+                  console.error("Erro:", error);
+                  alert("❌ Erro ao testar cancelamento");
+                }
+              }}
+              variant="danger"
+              size="sm"
+            >
+              🧪 Testar Cancelamento
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  console.log("🔍 Iniciando verificação de expirações...");
+
+                  const response = await fetch(
+                    "/api/debug/simulate-expiration-check",
+                    {
+                      method: "GET",
+                    }
+                  );
+
+                  console.log("Response status:", response.status);
+                  console.log("Response headers:", response.headers);
+
+                  if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("Response error:", errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                  }
+
+                  const data = await response.json();
+                  console.log("Expiration Check:", data);
+
+                  if (data.success) {
+                    if (data.expired_count > 0) {
+                      alert(
+                        `🕒 ${data.expired_count} usuários Premium expirados foram desativados!`
+                      );
+                      setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                      // Usar a mensagem detalhada da API
+                      alert(`✅ ${data.message}`);
+                    }
+                  } else {
+                    alert(
+                      `❌ Erro na verificação: ${
+                        data.error || "Erro desconhecido"
+                      }`
+                    );
+                  }
+                } catch (error) {
+                  console.error("Erro completo:", error);
+                  alert(`❌ Erro ao verificar expirações: ${error.message}`);
+                }
+              }}
+              variant="secondary"
+              size="sm"
+            >
+              🕒 Verificar Expirações
             </Button>
 
             <Button

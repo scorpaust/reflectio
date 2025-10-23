@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, ExternalLink, Loader2 } from "lucide-react";
+import { Crown, ExternalLink, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { formatDate } from "@/lib/utils";
+import { CancelSubscriptionModal } from "./CancelSubscriptionModal";
 
 interface SubscriptionManagerProps {
   isPremium: boolean;
@@ -19,12 +20,14 @@ export function SubscriptionManager({
 }: SubscriptionManagerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Verificar se é uma conta de teste (sem data de expiração ou muito recente)
-  const isTestAccount =
+  const isTestAccount = Boolean(
     !premiumExpiresAt ||
-    (premiumSince &&
-      new Date(premiumSince) > new Date(Date.now() - 5 * 60 * 1000)); // Últimos 5 minutos
+      (premiumSince &&
+        new Date(premiumSince) > new Date(Date.now() - 5 * 60 * 1000)) // Últimos 5 minutos
+  );
 
   const handleManageSubscription = async () => {
     try {
@@ -38,26 +41,33 @@ export function SubscriptionManager({
       const data = await response.json();
 
       if (!response.ok) {
-        // Se for erro de subscrição não encontrada, mostrar mensagem específica
-        if (data.error?.includes("subscrição")) {
+        // Tratar diferentes tipos de erro sem lançar exceção
+        if (
+          data.error?.includes("teste local") ||
+          data.error?.includes("subscrição")
+        ) {
           setError(
-            "Esta é uma conta Premium de teste. Para gerir uma subscrição real, faça um pagamento através do Stripe."
+            "💡 Esta é uma conta Premium de teste. Use o botão '🔗 Testar Portal' no painel de debug para testar o portal do Stripe."
           );
-          setIsLoading(false);
-          return;
+        } else if (data.error?.includes("autenticado")) {
+          setError("❌ Erro de autenticação. Faça login novamente.");
+        } else {
+          setError(data.error || "❌ Erro ao abrir portal. Tente novamente.");
         }
-        throw new Error(data.error || "Erro ao abrir portal");
+        setIsLoading(false);
+        return;
       }
 
       // Redirecionar para o Stripe Customer Portal
       if (data.url) {
         window.location.href = data.url;
       } else {
-        throw new Error("URL do portal não encontrada");
+        setError("❌ URL do portal não encontrada. Tente novamente.");
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error("Erro ao abrir portal:", error);
-      setError(error.message || "Erro ao abrir portal de gestão");
+      setError("❌ Erro de conexão. Verifique sua internet e tente novamente.");
       setIsLoading(false);
     }
   };
@@ -96,55 +106,36 @@ export function SubscriptionManager({
         </div>
 
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={handleManageSubscription}
-            disabled={isLoading}
-            className="flex items-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />A carregar...
-              </>
-            ) : (
-              <>
-                Gerir Subscrição
-                <ExternalLink className="w-4 h-4" />
-              </>
-            )}
-          </Button>
-
-          {isTestAccount && (
+          {!isTestAccount && (
             <Button
               size="sm"
-              variant="danger"
-              onClick={async () => {
-                if (confirm("Desativar Premium de teste?")) {
-                  try {
-                    const response = await fetch(
-                      "/api/debug/deactivate-premium",
-                      {
-                        method: "POST",
-                      }
-                    );
-
-                    if (response.ok) {
-                      alert("Premium desativado!");
-                      window.location.reload();
-                    } else {
-                      alert("Erro ao desativar Premium");
-                    }
-                  } catch (error) {
-                    alert("Erro ao desativar Premium");
-                  }
-                }
-              }}
+              variant="secondary"
+              onClick={handleManageSubscription}
+              disabled={isLoading}
               className="flex items-center gap-2"
             >
-              Desativar Teste
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />A carregar...
+                </>
+              ) : (
+                <>
+                  Portal Stripe
+                  <ExternalLink className="w-4 h-4" />
+                </>
+              )}
             </Button>
           )}
+
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => setShowCancelModal(true)}
+            className="flex items-center gap-2"
+          >
+            <X className="w-4 h-4" />
+            {isTestAccount ? "Desativar Teste" : "Cancelar Subscrição"}
+          </Button>
         </div>
       </div>
 
@@ -175,6 +166,13 @@ export function SubscriptionManager({
           )}
         </p>
       </div>
+
+      <CancelSubscriptionModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        premiumExpiresAt={premiumExpiresAt}
+        isTestAccount={isTestAccount}
+      />
     </Card>
   );
 }

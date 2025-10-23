@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { UserProfile } from "@/types/user.types";
 import { ROUTES } from "@/lib/constants";
+import { checkPremiumExpiration } from "@/lib/utils/premium-expiration";
 
 interface AuthContextType {
   user: User | null;
@@ -143,6 +144,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.log("🖼️ [AuthProvider] No avatar update needed:", {
                 hasGoogleAvatar: !!googleAvatarUrl,
                 hasProfileAvatar: !!profileData.avatar_url,
+              });
+            }
+
+            // Verificar expiração do Premium
+            if (profileData.is_premium) {
+              checkPremiumExpiration(session.user.id).then((result) => {
+                if (result.was_expired) {
+                  console.log(
+                    "🕒 [AuthProvider] Premium expirado, atualizando perfil"
+                  );
+                  // Atualizar estado local
+                  setProfile((prev) =>
+                    prev ? { ...prev, is_premium: false } : null
+                  );
+                }
               });
             }
 

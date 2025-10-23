@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      // Subscrição atualizada (mudança de plano, etc)
+      // Subscrição atualizada (mudança de plano, cancelamento agendado, etc)
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata?.user_id;
@@ -181,6 +181,9 @@ export async function POST(request: NextRequest) {
             (subscription as any).current_period_end * 1000
           );
 
+          // Verificar se foi cancelada (cancel_at_period_end = true)
+          const isCanceled = subscription.cancel_at_period_end;
+
           await supabaseAdmin
             .from("profiles")
             .update({
@@ -190,7 +193,13 @@ export async function POST(request: NextRequest) {
             })
             .eq("id", userId);
 
-          console.log(`🔄 Subscrição atualizada para usuário: ${userId}`);
+          if (isCanceled) {
+            console.log(
+              `🔄 Subscrição cancelada (final do período) para usuário: ${userId}, expira em: ${periodEnd}`
+            );
+          } else {
+            console.log(`🔄 Subscrição atualizada para usuário: ${userId}`);
+          }
         }
         break;
       }
