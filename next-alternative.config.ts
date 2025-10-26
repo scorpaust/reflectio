@@ -7,10 +7,6 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Desabilitar features que não funcionam com static export
-  experimental: {
-    appDir: true,
-  },
 };
 
 export default nextConfig;
