@@ -3,3 +3,27 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# Plugin do Next.js para Netlify (essencial para API routes)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Headers para CORS
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+
+# Cache para assets estáticos
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Redirects para API routes (backup)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200

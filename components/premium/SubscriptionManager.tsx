@@ -36,9 +36,33 @@ export function SubscriptionManager({
 
       const response = await fetch("/api/stripe/portal", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
-      const data = await response.json();
+      // Verificar se a resposta é HTML (erro 404 do Netlify)
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("text/html")) {
+        console.error("API route não encontrada - resposta HTML recebida");
+        setError(
+          "❌ Erro de configuração do servidor. A API não está disponível. Contacte o suporte."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error("Erro ao fazer parse da resposta JSON:", parseError);
+        setError(
+          "❌ Erro de comunicação com o servidor. Tente novamente em alguns minutos."
+        );
+        setIsLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         // Tratar diferentes tipos de erro sem lançar exceção

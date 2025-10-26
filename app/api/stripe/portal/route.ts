@@ -3,9 +3,12 @@ import { stripe } from "@/lib/stripe/config";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
+  console.log("🔍 Portal API chamada - início");
+
   try {
     // Verificar se o usuário está autenticado
     const supabase = await createClient();
+    console.log("✅ Supabase client criado");
 
     const {
       data: { user },

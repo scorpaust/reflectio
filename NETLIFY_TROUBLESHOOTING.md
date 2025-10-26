@@ -129,6 +129,9 @@ Configure no painel do Netlify:
 # Deploy com debug detalhado
 netlify deploy --prod --debug
 
+# Testar API routes após deploy
+SITE_URL=https://your-site.netlify.app npm run test:api
+
 # Verificar logs do site
 netlify logs
 
@@ -137,6 +140,27 @@ netlify status
 
 # Limpar cache local
 npm run build -- --no-cache
+```
+
+## Erro Específico: "Unexpected token '<', "<!DOCTYPE "..."
+
+Este erro indica que a API route está retornando HTML em vez de JSON. Causas:
+
+1. **Plugin Next.js não configurado**: Verifique se `@netlify/plugin-nextjs` está no netlify.toml
+2. **API route não encontrada**: O Netlify está retornando página 404 em HTML
+3. **Redirects incorretos**: As rotas `/api/*` não estão sendo direcionadas corretamente
+
+**Solução Imediata:**
+
+```bash
+# 1. Verificar se o plugin está instalado
+npm ls @netlify/plugin-nextjs
+
+# 2. Testar API routes
+SITE_URL=https://your-site.netlify.app npm run test:api
+
+# 3. Verificar logs do Netlify
+netlify logs --prod
 ```
 
 ## Verificação Pós-Deploy
