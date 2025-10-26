@@ -19,13 +19,38 @@ export default function HomePage() {
               </h1>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Link href={ROUTES.LOGIN}>
-                <Button variant="ghost">Entrar</Button>
-              </Link>
-              <Link href={ROUTES.REGISTER}>
-                <Button>Começar Gratuitamente</Button>
-              </Link>
+            <div className="flex items-center gap-6">
+              {/* Navigation Links */}
+              <nav className="hidden md:flex items-center gap-6">
+                <Link
+                  href="/about"
+                  className="text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Sobre
+                </Link>
+                <Link
+                  href="/help"
+                  className="text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Ajuda
+                </Link>
+                <Link
+                  href="/contact"
+                  className="text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Contacto
+                </Link>
+              </nav>
+
+              {/* Auth Buttons */}
+              <div className="flex items-center gap-3">
+                <Link href={ROUTES.LOGIN}>
+                  <Button variant="ghost">Entrar</Button>
+                </Link>
+                <Link href={ROUTES.REGISTER}>
+                  <Button>Começar Gratuitamente</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -196,9 +221,18 @@ export default function HomePage() {
               © 2025 Reflectio. Todos os direitos reservados.
             </p>
 
-            <div className="flex gap-6 text-sm">
-              <Link href="/terms" className="text-gray-600 hover:text-gray-900">
-                Termos
+            <div className="flex flex-wrap gap-6 text-sm justify-center md:justify-end">
+              <Link href="/about" className="text-gray-600 hover:text-gray-900">
+                Sobre
+              </Link>
+              <Link href="/help" className="text-gray-600 hover:text-gray-900">
+                Ajuda
+              </Link>
+              <Link
+                href="/contact"
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Contacto
               </Link>
               <Link
                 href="/privacy"
@@ -206,11 +240,8 @@ export default function HomePage() {
               >
                 Privacidade
               </Link>
-              <Link
-                href="/contact"
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Contacto
+              <Link href="/terms" className="text-gray-600 hover:text-gray-900">
+                Termos
               </Link>
             </div>
           </div>

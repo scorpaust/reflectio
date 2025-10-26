@@ -27,6 +27,7 @@ import { SubscriptionManager } from "@/components/premium/SubscriptionManager";
 import { PremiumBanner } from "@/components/premium/PremiumBanner";
 import { PremiumModal } from "@/components/premium/PremiumModal";
 import { ExpirationWarning } from "@/components/premium/ExpirationWarning";
+import { DeleteAccountModal } from "@/components/profile/DeleteAccountModal";
 
 export default function ProfilePage() {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -34,6 +35,7 @@ export default function ProfilePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<{
     type: "success" | "canceled" | "processing" | null;
     message: string;
@@ -148,10 +150,12 @@ export default function ProfilePage() {
           }
 
           // Fallback: verificar diretamente no banco
+          if (!profile?.id) return;
+
           const { data: updatedProfile } = await supabase
             .from("profiles")
             .select("is_premium, premium_since")
-            .eq("id", profile?.id)
+            .eq("id", profile.id)
             .single();
 
           if (updatedProfile?.is_premium) {
@@ -268,6 +272,35 @@ export default function ProfilePage() {
       alert("Erro ao cancelar Premium");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      const response = await fetch("/api/profile/delete-account", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erro ao eliminar conta");
+      }
+
+      // Sucesso - redirecionar para página inicial
+      alert(
+        "Conta eliminada com sucesso. Será redirecionado para a página inicial."
+      );
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Erro ao eliminar conta:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado ao eliminar conta. Tente novamente."
+      );
     }
   };
 
@@ -418,544 +451,10 @@ export default function ProfilePage() {
           <PremiumBanner onUpgrade={() => setShowPremiumModal(true)} />
 
           {/* Painel de Debug e Testes */}
-          <Card>
-            <div className="p-4">
-              <h3 className="font-semibold text-gray-800 mb-3">
-                🔧 Painel de Debug
-              </h3>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Button
-                  onClick={async () => {
-                    try {
-                      console.log("🔍 Verificando status do perfil...");
-
-                      const response = await fetch("/api/debug/profile");
-
-                      if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error("Response error:", errorText);
-                        throw new Error(
-                          `HTTP ${response.status}: ${errorText}`
-                        );
-                      }
-
-                      const data = await response.json();
-                      console.log("Profile Debug:", data);
-
-                      if (data.success) {
-                        alert(
-                          `📊 Status do Perfil:\n\n` +
-                            `• Premium: ${
-                              data.profile?.is_premium
-                                ? "✅ Ativo"
-                                : "❌ Inativo"
-                            }\n` +
-                            `• Status: ${data.premium_status}\n` +
-                            `• Email: ${data.profile?.email}\n` +
-                            `• Nível: ${data.profile?.current_level || 1}\n` +
-                            `• Posts: ${data.profile?.total_posts || 0}\n\n` +
-                            `Ver console para detalhes completos.`
-                        );
-                      } else {
-                        alert(`❌ Erro: ${data.error}`);
-                      }
-                    } catch (error) {
-                      console.error("Erro completo:", error);
-                      alert(`❌ Erro ao verificar perfil: ${error.message}`);
-                    }
-                  }}
-                  variant="secondary"
-                  size="sm"
-                >
-                  🔍 Verificar Status
-                </Button>
-
-                <Button
-                  onClick={async () => {
-                    try {
-                      const response = await fetch("/api/debug/profile", {
-                        method: "POST",
-                      });
-                      const data = await response.json();
-                      console.log("Update Result:", data);
-
-                      if (data.success) {
-                        alert("✅ Premium ativado! Recarregando página...");
-                        setTimeout(() => window.location.reload(), 1000);
-                      } else {
-                        alert(`❌ Erro: ${data.error}`);
-                      }
-                    } catch (error) {
-                      console.error("Erro:", error);
-                      alert("❌ Erro ao ativar Premium");
-                    }
-                  }}
-                  variant="secondary"
-                  size="sm"
-                >
-                  🚀 Forçar Premium
-                </Button>
-
-                <Button
-                  onClick={async () => {
-                    try {
-                      const response = await fetch(
-                        "/api/debug/deactivate-premium",
-                        {
-                          method: "POST",
-                        }
-                      );
-                      const data = await response.json();
-                      console.log("Deactivate Result:", data);
-
-                      if (data.success) {
-                        alert("✅ Premium desativado! Recarregando página...");
-                        setTimeout(() => window.location.reload(), 1000);
-                      } else {
-                        alert(`❌ Erro: ${data.error}`);
-                      }
-                    } catch (error) {
-                      console.error("Erro:", error);
-                      alert("❌ Erro ao desativar Premium");
-                    }
-                  }}
-                  variant="danger"
-                  size="sm"
-                >
-                  ❌ Desativar Premium
-                </Button>
-
-                <Button
-                  onClick={() => {
-                    const sessionId = localStorage.getItem("stripe_session_id");
-                    if (sessionId) {
-                      console.log("Session ID encontrado:", sessionId);
-                      alert(
-                        `Session ID: ${sessionId}\nVer console para detalhes.`
-                      );
-                    } else {
-                      alert("❌ Nenhum Session ID encontrado no localStorage");
-                    }
-                  }}
-                  variant="secondary"
-                  size="sm"
-                >
-                  📋 Ver Session ID
-                </Button>
-              </div>
-
-              <div className="mt-3 text-xs text-gray-500">
-                <p>
-                  • <strong>Verificar Status:</strong> Mostra o status atual do
-                  perfil
-                </p>
-                <p>
-                  • <strong>Simular Local:</strong> Ativa Premium de teste
-                  (cancelamento imediato)
-                </p>
-                <p>
-                  • <strong>Simular Real:</strong> Simula subscrição real
-                  (cancelamento agendado)
-                </p>
-                <p>
-                  • <strong>Testar Portal:</strong> Cria customer e testa portal
-                  do Stripe
-                </p>
-                <p>
-                  • <strong>Portal Direto:</strong> Abre portal mesmo com
-                  problemas de auth
-                </p>
-                <p>
-                  • <strong>Forçar Premium:</strong> Ativa Premium diretamente
-                  no banco
-                </p>
-                <p>
-                  • <strong>Desativar Premium:</strong> Remove Premium e volta
-                  para Free
-                </p>
-                <p>
-                  • <strong>Ver Session ID:</strong> Verifica se há session do
-                  Stripe salvo
-                </p>
-              </div>
-            </div>
-          </Card>
         </div>
       )}
 
       {/* Painel de Debug - Sempre visível */}
-      <Card>
-        <div className="p-4">
-          <h3 className="font-semibold text-gray-800 mb-3">
-            🔧 Painel de Debug
-          </h3>
-
-          <div className="grid grid-cols-2 md:grid-cols-11 gap-3">
-            <Button
-              onClick={async () => {
-                try {
-                  const response = await fetch("/api/debug/profile");
-                  const data = await response.json();
-                  console.log("Profile Debug:", data);
-                  alert(
-                    `Status atual: ${
-                      data.profile?.is_premium ? "Premium ✅" : "Free ❌"
-                    }\nVer console para detalhes completos.`
-                  );
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao verificar perfil");
-                }
-              }}
-              variant="secondary"
-              size="sm"
-            >
-              🔍 Verificar Status
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const sessionId = `cs_test_${Date.now()}`;
-                  localStorage.setItem("stripe_session_id", sessionId);
-
-                  const response = await fetch("/api/stripe/simulate-success", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ sessionId }),
-                  });
-
-                  const data = await response.json();
-                  console.log("Simulate Result:", data);
-
-                  if (data.success) {
-                    alert(
-                      "🧪 Pagamento simulado (teste local)! Recarregando página..."
-                    );
-                    setTimeout(() => window.location.reload(), 1000);
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao simular pagamento");
-                }
-              }}
-              variant="primary"
-              size="sm"
-            >
-              🧪 Simular Local
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const response = await fetch(
-                    "/api/debug/simulate-real-subscription",
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({ planType: "monthly" }),
-                    }
-                  );
-
-                  const data = await response.json();
-                  console.log("Real Sim Result:", data);
-
-                  if (data.success) {
-                    alert(
-                      "🎭 Subscrição REAL simulada (mensal)! Recarregando página..."
-                    );
-                    setTimeout(() => window.location.reload(), 1000);
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao simular subscrição real");
-                }
-              }}
-              variant="secondary"
-              size="sm"
-            >
-              🎭 Simular Real (Mensal)
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const response = await fetch(
-                    "/api/debug/simulate-real-subscription",
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({ planType: "yearly" }),
-                    }
-                  );
-
-                  const data = await response.json();
-                  console.log("Real Sim Result:", data);
-
-                  if (data.success) {
-                    alert(
-                      "🎭 Subscrição REAL simulada (anual)! Recarregando página..."
-                    );
-                    setTimeout(() => window.location.reload(), 1000);
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao simular subscrição real");
-                }
-              }}
-              variant="secondary"
-              size="sm"
-            >
-              🎭 Simular Real (Anual)
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const response = await fetch("/api/debug/test-portal", {
-                    method: "POST",
-                  });
-                  const data = await response.json();
-                  console.log("Portal Test Result:", data);
-
-                  if (data.success && data.url) {
-                    alert("🧪 Portal de teste criado! Redirecionando...");
-                    window.location.href = data.url;
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao testar portal");
-                }
-              }}
-              variant="secondary"
-              size="sm"
-            >
-              🔗 Testar Portal
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const response = await fetch("/api/debug/profile", {
-                    method: "POST",
-                  });
-                  const data = await response.json();
-                  console.log("Update Result:", data);
-
-                  if (data.success) {
-                    alert("✅ Premium ativado! Recarregando página...");
-                    setTimeout(() => window.location.reload(), 1000);
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao ativar Premium");
-                }
-              }}
-              variant="secondary"
-              size="sm"
-            >
-              🚀 Forçar Premium
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const response = await fetch(
-                    "/api/debug/deactivate-premium",
-                    {
-                      method: "POST",
-                    }
-                  );
-                  const data = await response.json();
-                  console.log("Deactivate Result:", data);
-
-                  if (data.success) {
-                    alert("✅ Premium desativado! Recarregando página...");
-                    setTimeout(() => window.location.reload(), 1000);
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao desativar Premium");
-                }
-              }}
-              variant="danger"
-              size="sm"
-            >
-              ❌ Desativar Premium
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  // Portal direto que funciona mesmo com problemas de auth
-                  const response = await fetch("/api/debug/test-portal", {
-                    method: "POST",
-                  });
-                  const data = await response.json();
-                  console.log("Portal Direto:", data);
-
-                  if (data.success && data.url) {
-                    alert("🔗 Portal direto funcionando! Abrindo...");
-                    window.open(data.url, "_blank");
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao testar portal direto");
-                }
-              }}
-              variant="primary"
-              size="sm"
-            >
-              🔗 Portal Direto
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const response = await fetch(
-                    "/api/stripe/cancel-subscription",
-                    {
-                      method: "POST",
-                    }
-                  );
-                  const data = await response.json();
-                  console.log("Cancel Test:", data);
-
-                  if (data.success) {
-                    if (data.immediate_cancellation) {
-                      alert("🧪 Cancelamento imediato (conta de teste)");
-                      setTimeout(() => window.location.reload(), 1000);
-                    } else {
-                      alert(
-                        `✅ Cancelamento agendado! Premium mantido até: ${new Date(
-                          data.expires_at
-                        ).toLocaleDateString()}`
-                      );
-                    }
-                  } else {
-                    alert(`❌ Erro: ${data.error}`);
-                  }
-                } catch (error) {
-                  console.error("Erro:", error);
-                  alert("❌ Erro ao testar cancelamento");
-                }
-              }}
-              variant="danger"
-              size="sm"
-            >
-              🧪 Testar Cancelamento
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  console.log("🔍 Iniciando verificação de expirações...");
-
-                  const response = await fetch(
-                    "/api/debug/simulate-expiration-check",
-                    {
-                      method: "GET",
-                    }
-                  );
-
-                  console.log("Response status:", response.status);
-                  console.log("Response headers:", response.headers);
-
-                  if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("Response error:", errorText);
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                  }
-
-                  const data = await response.json();
-                  console.log("Expiration Check:", data);
-
-                  if (data.success) {
-                    if (data.expired_count > 0) {
-                      alert(
-                        `🕒 ${data.expired_count} usuários Premium expirados foram desativados!`
-                      );
-                      setTimeout(() => window.location.reload(), 1000);
-                    } else {
-                      // Usar a mensagem detalhada da API
-                      alert(`✅ ${data.message}`);
-                    }
-                  } else {
-                    alert(
-                      `❌ Erro na verificação: ${
-                        data.error || "Erro desconhecido"
-                      }`
-                    );
-                  }
-                } catch (error) {
-                  console.error("Erro completo:", error);
-                  alert(`❌ Erro ao verificar expirações: ${error.message}`);
-                }
-              }}
-              variant="secondary"
-              size="sm"
-            >
-              🕒 Verificar Expirações
-            </Button>
-
-            <Button
-              onClick={() => {
-                const sessionId = localStorage.getItem("stripe_session_id");
-                if (sessionId) {
-                  console.log("Session ID encontrado:", sessionId);
-                  alert(`Session ID: ${sessionId}\nVer console para detalhes.`);
-                } else {
-                  alert("❌ Nenhum Session ID encontrado no localStorage");
-                }
-              }}
-              variant="secondary"
-              size="sm"
-            >
-              📋 Ver Session ID
-            </Button>
-          </div>
-
-          <div className="mt-3 text-xs text-gray-500">
-            <p>
-              • <strong>Verificar Status:</strong> Mostra o status atual do
-              perfil
-            </p>
-            <p>
-              • <strong>Forçar Premium:</strong> Ativa Premium diretamente no
-              banco
-            </p>
-            <p>
-              • <strong>Desativar Premium:</strong> Remove Premium e volta para
-              Free
-            </p>
-            <p>
-              • <strong>Ver Session ID:</strong> Verifica se há session do
-              Stripe salvo
-            </p>
-          </div>
-        </div>
-      </Card>
 
       {/* Modal Premium */}
       <PremiumModal
@@ -1048,6 +547,23 @@ export default function ProfilePage() {
               Sair
             </Button>
           </div>
+
+          <div className="flex items-center justify-between p-4 bg-red-100 rounded-lg border border-red-300">
+            <div>
+              <p className="font-semibold text-red-800">Eliminar Conta</p>
+              <p className="text-sm text-red-600">
+                Elimina permanentemente a sua conta e todos os dados associados
+              </p>
+            </div>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowDeleteModal(true)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Eliminar
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -1056,6 +572,14 @@ export default function ProfilePage() {
         onClose={() => setShowEditModal(false)}
         profile={profile}
         onUpdate={handleUpdateProfile}
+      />
+
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteAccount}
+        userEmail={profile.email}
+        userName={profile.full_name}
       />
     </div>
   );

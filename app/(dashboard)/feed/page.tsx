@@ -8,6 +8,7 @@ import { CreatePost } from "@/components/feed/CreatePost";
 import { ReflectionModal } from "@/components/feed/ReflectionModal";
 import { PremiumModal } from "@/components/premium/PremiumModal";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { postFilterService } from "@/lib/services/postFiltering";
 
 export default function FeedPage() {
   const { profile } = useAuth();
@@ -19,23 +20,26 @@ export default function FeedPage() {
     id: string;
     title: string;
   } | null>(null);
+  const [showReflectionModal, setShowReflectionModal] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "text" | "audio">("all");
 
   const fetchPosts = async () => {
+    if (!profile?.id) return;
+
     try {
       let query = supabase
         .from("posts")
         .select(
           `
         *,
-        author:profiles(id, full_name, username, avatar_url, current_level)
+        author:profiles(id, full_name, username, avatar_url, current_level, is_premium)
       `
         )
         .eq("status", "published")
         .order("created_at", { ascending: false })
         .limit(20);
 
-      // Aplicar filtro
+      // Aplicar filtro de tipo de conteúdo
       if (filterType === "audio") {
         query = query.not("audio_url", "is", null);
       } else if (filterType === "text") {
@@ -47,7 +51,7 @@ export default function FeedPage() {
       if (error) throw error;
 
       // Ensure all posts have the required audio fields with defaults
-      const postsWithDefaults = (data || []).map((post) => ({
+      const allPosts = (data || []).map((post) => ({
         ...post,
         audio_url: (post as any).audio_url || null,
         audio_duration: (post as any).audio_duration || null,
@@ -55,7 +59,14 @@ export default function FeedPage() {
         audio_transcript: (post as any).audio_transcript || null,
       })) as PostWithAuthor[];
 
-      setPosts(postsWithDefaults);
+      // Filtrar posts baseado nas permissões do utilizador
+      const filteredPosts = await postFilterService.filterPostsForUser(
+        allPosts,
+        profile.id,
+        { includeOwnPosts: true }
+      );
+
+      setPosts(filteredPosts as PostWithAuthor[]);
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
@@ -64,15 +75,14 @@ export default function FeedPage() {
   };
 
   useEffect(() => {
-    fetchPosts();
-  }, [filterType]);
+    if (profile?.id) {
+      fetchPosts();
+    }
+  }, [filterType, profile?.id]);
 
   const handleReflect = (postId: string, postTitle: string) => {
-    if (!profile?.is_premium) {
-      setShowPremiumModal(true);
-      return;
-    }
     setSelectedPost({ id: postId, title: postTitle });
+    setShowReflectionModal(true);
   };
 
   const handleReflectionCreated = () => {
@@ -221,8 +231,11 @@ export default function FeedPage() {
 
       {selectedPost && (
         <ReflectionModal
-          isOpen={!!selectedPost}
-          onClose={() => setSelectedPost(null)}
+          isOpen={showReflectionModal}
+          onClose={() => {
+            setShowReflectionModal(false);
+            setSelectedPost(null);
+          }}
           postId={selectedPost.id}
           postTitle={selectedPost.title}
           onReflectionCreated={handleReflectionCreated}

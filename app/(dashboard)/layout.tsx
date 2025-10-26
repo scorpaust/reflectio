@@ -3,6 +3,7 @@
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Header } from "@/components/layout/Header";
 import { Navigation } from "@/components/layout/Navigation";
+import { Footer } from "@/components/layout/Footer";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { ROUTES } from "@/lib/constants";
@@ -18,14 +19,14 @@ export default function DashboardLayout({
   console.log("🏠 [DashboardLayout] Render:", {
     hasUser: !!user,
     userId: user?.id,
-    isLoading
+    isLoading,
   });
 
   useEffect(() => {
     console.log("🏠 [DashboardLayout] useEffect:", {
       hasUser: !!user,
       userId: user?.id,
-      isLoading
+      isLoading,
     });
 
     // Add small delay to allow auth to settle after login
@@ -34,7 +35,7 @@ export default function DashboardLayout({
         hasUser: !!user,
         userId: user?.id,
         isLoading,
-        willRedirect: !isLoading && !user
+        willRedirect: !isLoading && !user,
       });
 
       if (!isLoading && !user) {
@@ -62,10 +63,13 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex flex-col">
       <Header />
       <Navigation />
-      <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
+      <main className="flex-1 max-w-7xl mx-auto px-4 py-8 w-full">
+        {children}
+      </main>
+      <Footer />
     </div>
   );
 }

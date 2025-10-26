@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/config";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
     // Verificar se o usuário está autenticado
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createClient();
 
     const {
       data: { user },
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     if (
       profile.stripe_subscription_id &&
       !profile.stripe_subscription_id.startsWith("sub_test_") &&
-      !profile.stripe_subscription_id.startsWith("sub_debug_")
+      !profile.stripe_subscription_id.startsWith("sub_test_")
     ) {
       try {
         const subscription = await stripe.subscriptions.retrieve(
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     if (
       !profile.stripe_subscription_id ||
       profile.stripe_subscription_id.startsWith("sub_test_") ||
-      profile.stripe_subscription_id.startsWith("sub_debug_")
+      profile.stripe_subscription_id.startsWith("sub_test_")
     ) {
       return NextResponse.json(
         {

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/config";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
     // Verificar se o usuário está autenticado
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createClient();
 
     const {
       data: { user },
@@ -41,13 +41,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar se é uma subscrição local de teste (apenas IDs específicos de debug/simulação)
+    // Verificar se é uma subscrição local de teste
     const isLocalTestAccount =
       !profile.stripe_subscription_id ||
       profile.stripe_subscription_id.startsWith("sub_test_") ||
-      profile.stripe_subscription_id.startsWith("sub_debug_") ||
-      profile.stripe_subscription_id.includes("simulate") ||
-      profile.stripe_subscription_id.includes("debug");
+      profile.stripe_subscription_id.includes("simulate");
 
     if (isLocalTestAccount) {
       console.log(
@@ -82,6 +80,13 @@ export async function POST(request: NextRequest) {
       `💳 Tentando cancelar subscrição real no Stripe: ${profile.stripe_subscription_id}`
     );
 
+    if (!profile.stripe_subscription_id) {
+      return NextResponse.json(
+        { error: "ID da subscrição não encontrado" },
+        { status: 400 }
+      );
+    }
+
     try {
       // Cancelar subscrição no Stripe (no final do período)
       const subscription = await stripe.subscriptions.update(
@@ -93,7 +98,7 @@ export async function POST(request: NextRequest) {
 
       console.log(
         `✅ Subscrição cancelada no Stripe, expira em: ${new Date(
-          subscription.current_period_end * 1000
+          (subscription as any).current_period_end * 1000
         )}`
       );
 
@@ -102,7 +107,7 @@ export async function POST(request: NextRequest) {
         .from("profiles")
         .update({
           premium_expires_at: new Date(
-            subscription.current_period_end * 1000
+            (subscription as any).current_period_end * 1000
           ).toISOString(),
           // IMPORTANTE: Manter is_premium = true até o final do período
         })
@@ -116,7 +121,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const expirationDate = new Date(subscription.current_period_end * 1000);
+      const expirationDate = new Date(
+        (subscription as any).current_period_end * 1000
+      );
 
       return NextResponse.json({
         success: true,

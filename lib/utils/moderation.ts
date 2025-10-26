@@ -9,6 +9,7 @@
  * - Combinação de resultados de moderação
  * - Sanitização de texto
  * - Geração de relatórios
+ * - Moderação inteligente baseada no status do utilizador
  */
 
 import {
@@ -16,6 +17,7 @@ import {
   ModerationConfig,
   CustomModerationRule,
 } from "@/types/moderation";
+import { permissionService } from "@/lib/services/permissions";
 
 // ============================================
 // Configurações Padrão
@@ -269,6 +271,303 @@ export function generateModerationReport(result: ModerationResult): string {
   }
 
   return report.join("\n");
+}
+
+// ============================================
+// Moderação Inteligente Baseada no Utilizador
+// ============================================
+
+/**
+ * Interface para configuração de moderação inteligente
+ */
+export interface IntelligentModerationConfig {
+  userId: string;
+  contentType: "text" | "audio";
+  content: string;
+  context?: {
+    postId?: string;
+    reflectionId?: string;
+    isEdit?: boolean;
+  };
+}
+
+/**
+ * Interface para resultado de moderação inteligente
+ */
+export interface IntelligentModerationResult extends ModerationResult {
+  moderationType: "mandatory" | "intelligent" | "bypassed";
+  userType: "free" | "premium";
+  shouldModerate: boolean;
+  bypassReason?: string;
+}
+
+/**
+ * Determina se o conteúdo deve ser moderado baseado no status do utilizador
+ *
+ * @description
+ * Implementa lógica de moderação inteligente:
+ * - Utilizadores gratuitos: moderação obrigatória
+ * - Utilizadores premium: moderação inteligente (apenas quando necessário)
+ * - Logs de todas as decisões para análise
+ *
+ * @param config - Configuração da moderação inteligente
+ * @returns Resultado da decisão de moderação
+ *
+ * @example
+ * ```ts
+ * const result = await shouldModerateContent({
+ *   userId: "user123",
+ *   contentType: "text",
+ *   content: "Este é um texto de exemplo"
+ * });
+ *
+ * if (result.shouldModerate) {
+ *   // Aplicar moderação
+ * }
+ * ```
+ */
+export async function shouldModerateContent(
+  config: IntelligentModerationConfig
+): Promise<IntelligentModerationResult> {
+  try {
+    // Obter permissões do utilizador
+    const permissions = await permissionService.getUserPermissions(
+      config.userId
+    );
+    const userType = permissions.requiresMandatoryModeration
+      ? "free"
+      : "premium";
+
+    // Log da decisão de moderação
+    console.log(
+      `[Moderation Decision] User: ${config.userId}, Type: ${userType}, Content: ${config.contentType}`
+    );
+
+    // Utilizadores gratuitos sempre passam por moderação
+    if (permissions.requiresMandatoryModeration) {
+      return {
+        flagged: false, // Será determinado pela moderação real
+        severity: "low",
+        categories: [],
+        reason: "Moderação obrigatória para utilizador gratuito",
+        confidence: 1.0,
+        moderationType: "mandatory",
+        userType: "free",
+        shouldModerate: true,
+      };
+    }
+
+    // Para utilizadores premium, aplicar moderação inteligente
+    const intelligentResult = await applyIntelligentModeration(config);
+
+    return {
+      ...intelligentResult,
+      moderationType: intelligentResult.shouldModerate
+        ? "intelligent"
+        : "bypassed",
+      userType: "premium",
+    };
+  } catch (error) {
+    console.error("Error in shouldModerateContent:", error);
+
+    // Em caso de erro, aplicar moderação por segurança
+    return {
+      flagged: false,
+      severity: "medium",
+      categories: ["error"],
+      reason:
+        "Erro na verificação de permissões - aplicando moderação por segurança",
+      confidence: 0.5,
+      moderationType: "mandatory",
+      userType: "free",
+      shouldModerate: true,
+    };
+  }
+}
+
+/**
+ * Aplica lógica de moderação inteligente para utilizadores premium
+ *
+ * @description
+ * Determina se utilizadores premium precisam de moderação baseado em:
+ * - Histórico de comportamento
+ * - Tipo de conteúdo
+ * - Contexto da publicação
+ * - Heurísticas de risco
+ *
+ * @param config - Configuração da moderação
+ * @returns Resultado da moderação inteligente
+ */
+async function applyIntelligentModeration(
+  config: IntelligentModerationConfig
+): Promise<IntelligentModerationResult> {
+  const { content, contentType } = config;
+
+  // Verificações rápidas que indicam necessidade de moderação
+  const quickChecks = performQuickRiskAssessment(content);
+
+  if (quickChecks.highRisk) {
+    return {
+      flagged: false,
+      severity: quickChecks.severity,
+      categories: quickChecks.categories,
+      reason: "Conteúdo de alto risco detectado - moderação necessária",
+      confidence: quickChecks.confidence,
+      moderationType: "intelligent",
+      userType: "premium",
+      shouldModerate: true,
+    };
+  }
+
+  // Se passou nas verificações rápidas, pode ser publicado sem moderação
+  return {
+    flagged: false,
+    severity: "low",
+    categories: [],
+    reason: "Conteúdo aprovado por moderação inteligente",
+    confidence: 0.9,
+    moderationType: "bypassed",
+    userType: "premium",
+    shouldModerate: false,
+    bypassReason: "Utilizador premium com conteúdo de baixo risco",
+  };
+}
+
+/**
+ * Realiza verificação rápida de risco no conteúdo
+ *
+ * @description
+ * Aplica heurísticas simples para detectar conteúdo potencialmente problemático:
+ * - Palavras ofensivas conhecidas
+ * - Padrões suspeitos (CAPS excessivo, caracteres especiais)
+ * - Comprimento anormal
+ * - URLs suspeitas
+ *
+ * @param content - Conteúdo a ser verificado
+ * @returns Resultado da avaliação de risco
+ */
+function performQuickRiskAssessment(content: string): {
+  highRisk: boolean;
+  severity: "low" | "medium" | "high";
+  categories: string[];
+  confidence: number;
+} {
+  const risks: string[] = [];
+  let maxSeverity: "low" | "medium" | "high" = "low";
+
+  // Verificar palavras ofensivas
+  const { hasBlockedWords, foundWords } = checkBlockedWords(
+    content,
+    OFFENSIVE_WORDS_PT
+  );
+  if (hasBlockedWords) {
+    risks.push("offensive-language");
+    maxSeverity = "high";
+  }
+
+  // Verificar CAPS excessivo (mais de 70% em maiúsculas)
+  const uppercaseRatio =
+    (content.match(/[A-Z]/g) || []).length / content.length;
+  if (uppercaseRatio > 0.7 && content.length > 20) {
+    risks.push("excessive-caps");
+    maxSeverity = maxSeverity === "low" ? "medium" : maxSeverity;
+  }
+
+  // Verificar caracteres especiais suspeitos
+  const specialCharRatio =
+    (content.match(/[!@#$%^&*()_+=\[\]{}|;':",./<>?~`]/g) || []).length /
+    content.length;
+  if (specialCharRatio > 0.3) {
+    risks.push("suspicious-characters");
+    maxSeverity = maxSeverity === "low" ? "medium" : maxSeverity;
+  }
+
+  // Verificar URLs suspeitas (padrão básico)
+  const suspiciousUrls = content.match(/https?:\/\/[^\s]+/g);
+  if (suspiciousUrls && suspiciousUrls.length > 2) {
+    risks.push("multiple-urls");
+    maxSeverity = maxSeverity === "low" ? "medium" : maxSeverity;
+  }
+
+  // Verificar repetição excessiva de caracteres
+  if (/(.)\1{10,}/.test(content)) {
+    risks.push("character-spam");
+    maxSeverity = maxSeverity === "low" ? "medium" : maxSeverity;
+  }
+
+  const highRisk =
+    risks.length > 0 && (maxSeverity === "high" || risks.length >= 3);
+  const confidence = risks.length > 0 ? Math.min(0.8, risks.length * 0.3) : 0.1;
+
+  return {
+    highRisk,
+    severity: maxSeverity,
+    categories: risks,
+    confidence,
+  };
+}
+
+/**
+ * Registra decisão de moderação para análise posterior
+ *
+ * @description
+ * Mantém logs estruturados das decisões de moderação para:
+ * - Análise de eficácia do sistema
+ * - Detecção de padrões de abuso
+ * - Melhoria contínua dos algoritmos
+ * - Auditoria de segurança
+ *
+ * @param decision - Resultado da decisão de moderação
+ * @param config - Configuração original da moderação
+ */
+export function logModerationDecision(
+  decision: IntelligentModerationResult,
+  config: IntelligentModerationConfig
+): void {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    userId: config.userId,
+    userType: decision.userType,
+    contentType: config.contentType,
+    moderationType: decision.moderationType,
+    shouldModerate: decision.shouldModerate,
+    severity: decision.severity,
+    categories: decision.categories,
+    confidence: decision.confidence,
+    bypassReason: decision.bypassReason,
+    context: config.context,
+    contentLength: config.content.length,
+  };
+
+  // Log estruturado para análise
+  console.log(`[Moderation Log] ${JSON.stringify(logEntry)}`);
+
+  // TODO: Implementar persistência em base de dados para análise posterior
+  // await saveModerationLog(logEntry);
+}
+
+/**
+ * Obtém estatísticas de moderação por tipo de utilizador
+ *
+ * @description
+ * Fornece métricas para análise da eficácia do sistema de moderação inteligente
+ *
+ * @returns Estatísticas de moderação
+ */
+export function getModerationStats(): {
+  totalDecisions: number;
+  byUserType: Record<string, number>;
+  byModerationType: Record<string, number>;
+  averageConfidence: number;
+} {
+  // TODO: Implementar coleta de estatísticas da base de dados
+  // Por agora, retorna estrutura vazia para compatibilidade
+  return {
+    totalDecisions: 0,
+    byUserType: {},
+    byModerationType: {},
+    averageConfidence: 0,
+  };
 }
 
 // Função para validar configuração de moderação

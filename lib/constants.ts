@@ -52,6 +52,16 @@ export const ROUTES = {
   PROGRESS: "/progress",
   /** Página de perfil do utilizador (requer autenticação) */
   PROFILE: "/profile",
+  /** Página sobre a plataforma */
+  ABOUT: "/about",
+  /** Página de contacto */
+  CONTACT: "/contact",
+  /** Página de ajuda e FAQ */
+  HELP: "/help",
+  /** Política de privacidade */
+  PRIVACY: "/privacy",
+  /** Termos de serviço */
+  TERMS: "/terms",
 } as const;
 
 // ============================================
@@ -70,4 +80,38 @@ export const PREMIUM_PRICES = {
   MONTHLY: 9.9,
   /** Assinatura anual (€95.00/ano - ~20% desconto) */
   ANNUAL: 95.0,
+} as const;
+
+// ============================================
+// Mensagens de Sistema
+// ============================================
+
+/**
+ * Mensagens de sistema padronizadas
+ *
+ * @description
+ * Mensagens reutilizáveis para diferentes contextos da aplicação
+ */
+export const SYSTEM_MESSAGES = {
+  /** Mensagens de carregamento */
+  LOADING: {
+    DEFAULT: "A carregar...",
+    POSTS: "A carregar posts...",
+    PROFILE: "A carregar perfil...",
+    CONNECTIONS: "A carregar conexões...",
+  },
+  /** Mensagens de erro genéricas */
+  ERRORS: {
+    GENERIC: "Ocorreu um erro inesperado. Tente novamente.",
+    NETWORK: "Erro de conexão. Verifique a sua ligação à internet.",
+    NOT_FOUND: "Conteúdo não encontrado.",
+    UNAUTHORIZED: "Não tem permissão para aceder a este conteúdo.",
+  },
+  /** Mensagens de sucesso */
+  SUCCESS: {
+    SAVED: "Guardado com sucesso!",
+    UPDATED: "Atualizado com sucesso!",
+    DELETED: "Eliminado com sucesso!",
+    SENT: "Enviado com sucesso!",
+  },
 } as const;

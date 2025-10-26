@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 // API para simular sucesso de pagamento em desenvolvimento
 export async function POST(request: NextRequest) {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se o usuário está autenticado
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createClient();
 
     const {
       data: { user },

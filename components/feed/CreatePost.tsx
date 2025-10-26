@@ -346,9 +346,8 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
     }
   };
 
-  if (!profile?.is_premium) {
-    return null;
-  }
+  // Utilizadores não-premium podem criar posts, mas não podem marcar como premium
+  const canCreatePremiumContent = profile?.is_premium;
 
   if (!isOpen) {
     return (
@@ -546,19 +545,21 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
           )}
         </div>
 
-        {/* Premium Content Toggle */}
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isPremiumContent}
-            onChange={(e) => setIsPremiumContent(e.target.checked)}
-            className="rounded text-purple-600 focus:ring-purple-500"
-            disabled={isLoading}
-          />
-          <span className="text-sm text-gray-800">
-            Marcar como conteúdo Premium (apenas para membros Premium)
-          </span>
-        </label>
+        {/* Premium Content Toggle - apenas para utilizadores premium */}
+        {canCreatePremiumContent && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isPremiumContent}
+              onChange={(e) => setIsPremiumContent(e.target.checked)}
+              className="rounded text-purple-600 focus:ring-purple-500"
+              disabled={isLoading}
+            />
+            <span className="text-sm text-gray-800">
+              Marcar como conteúdo Premium (apenas para membros Premium)
+            </span>
+          </label>
+        )}
 
         {/* Indicador de moderação */}
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">

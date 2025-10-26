@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import {
+  shouldModerateContent,
+  logModerationDecision,
+  IntelligentModerationConfig,
+} from "@/lib/utils/moderation";
+import { createClient } from "@/lib/supabase/server";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -7,13 +13,51 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { text } = await request.json();
+    const { text, userId, context } = await request.json();
 
     if (!text || typeof text !== "string") {
       return NextResponse.json(
         { error: "Texto é obrigatório" },
         { status: 400 }
       );
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "ID do utilizador é obrigatório" },
+        { status: 400 }
+      );
+    }
+
+    // Verificar se deve aplicar moderação baseado no tipo de utilizador
+    const moderationConfig: IntelligentModerationConfig = {
+      userId,
+      contentType: "text",
+      content: text,
+      context: context || {},
+    };
+
+    const moderationDecision = await shouldModerateContent(moderationConfig);
+
+    // Log da decisão
+    logModerationDecision(moderationDecision, moderationConfig);
+
+    // Se não precisa de moderação (utilizador premium confiável), retornar aprovado
+    if (!moderationDecision.shouldModerate) {
+      const result = {
+        flagged: false,
+        severity: "low" as const,
+        categories: [],
+        reason:
+          moderationDecision.bypassReason || "Conteúdo aprovado sem moderação",
+        suggestions: [],
+        confidence: moderationDecision.confidence,
+        moderationType: moderationDecision.moderationType,
+        userType: moderationDecision.userType,
+        bypassed: true,
+      };
+
+      return NextResponse.json(result);
     }
 
     // Moderação usando OpenAI
@@ -84,7 +128,15 @@ export async function POST(request: NextRequest) {
       confidence: moderation.category_scores
         ? Math.max(...Object.values(moderation.category_scores))
         : 0.5,
+      moderationType: moderationDecision.moderationType,
+      userType: moderationDecision.userType,
+      bypassed: false,
     };
+
+    // Log do resultado final da moderação
+    console.log(
+      `[Moderation Result] User: ${userId}, Flagged: ${isFlagged}, Type: ${moderationDecision.moderationType}`
+    );
 
     return NextResponse.json(result);
   } catch (error) {

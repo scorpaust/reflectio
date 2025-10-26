@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -14,7 +14,12 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "playwright:install": "playwright install"
+    "playwright:install": "playwright install",
+    "deploy:check": "node scripts/deploy-production.js",
+    "deploy:prod": "npm run deploy:check && npm run build && vercel --prod",
+    "deploy:netlify": "powershell -ExecutionPolicy Bypass -File scripts/deploy-netlify.ps1",
+    "logs": "vercel logs",
+    "logs:netlify": "netlify logs"
   },
   "dependencies": {
     "@stripe/stripe-js": "^8.0.0",
@@ -23,8 +28,10 @@
     "@supabase/supabase-js": "^2.75.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "lucide-react": "^0.545.0",
     "next": "15.5.4",
+    "node-mailjet": "^6.0.9",
     "openai": "^4.67.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -38,6 +45,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
+    "@netlify/functions": "^5.0.1",
     "@playwright/test": "^1.56.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",

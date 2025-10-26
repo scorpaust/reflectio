@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plus, MessageCircle, Lightbulb } from "lucide-react";
+import { X, Plus, MessageCircle, Lightbulb, Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ModeratedTextInput } from "@/components/moderation/ModeratedTextInput";
@@ -10,6 +10,11 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { ReflectionWithAuthor } from "@/types/post.types";
 import { LEVELS } from "@/types/user.types";
 import { getInitials, formatDate } from "@/lib/utils";
+import { reflectionPermissionChecker } from "@/lib/services/reflectionPermissions";
+import { ReflectionUpgradePrompt } from "@/components/premium/UpgradePrompt";
+import { RestrictionMessage } from "@/components/ui/RestrictionMessage";
+import { HelpText, RestrictionHelp } from "@/components/ui/HelpText";
+import { useReflectionPermissionErrors } from "@/lib/hooks/usePermissionErrors";
 
 interface ReflectionModalProps {
   isOpen: boolean;
@@ -26,7 +31,7 @@ export function ReflectionModal({
   postTitle,
   onReflectionCreated,
 }: ReflectionModalProps) {
-  const { profile } = useAuth();
+  const { profile, permissions } = useAuth();
   const supabase = createClient();
   const [reflections, setReflections] = useState<ReflectionWithAuthor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,11 +44,58 @@ export function ReflectionModal({
   const [showForm, setShowForm] = useState(false);
   const [isContentValid, setIsContentValid] = useState(true);
 
+  // Permission states
+  const [canCreateReflection, setCanCreateReflection] = useState(true);
+  const [isCheckingPermissions, setIsCheckingPermissions] = useState(false);
+  const {
+    errorState,
+    setReflectionCreationError,
+    clearError,
+    formatErrorMessage,
+  } = useReflectionPermissionErrors();
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && profile?.id) {
       fetchReflections();
+      checkReflectionPermissions();
     }
-  }, [isOpen, postId]);
+  }, [isOpen, postId, profile?.id]);
+
+  const checkReflectionPermissions = async () => {
+    if (!profile?.id) return;
+
+    try {
+      setIsCheckingPermissions(true);
+      setError("");
+      clearError();
+
+      const permissionResult =
+        await reflectionPermissionChecker.canCreateReflection(
+          profile.id,
+          postId
+        );
+
+      setCanCreateReflection(permissionResult.allowed);
+
+      if (!permissionResult.allowed) {
+        // Determine the reason for restriction
+        const reason =
+          permissionResult.reason?.includes("premium") ||
+          permissionResult.reason?.includes("Premium")
+            ? "premium_content"
+            : "premium_author";
+
+        setReflectionCreationError(reason);
+        setShowForm(false);
+      }
+    } catch (error) {
+      console.error("Erro ao verificar permissões de reflexão:", error);
+      setError("Erro ao verificar permissões");
+      setCanCreateReflection(false);
+    } finally {
+      setIsCheckingPermissions(false);
+    }
+  };
 
   const fetchReflections = async () => {
     try {
@@ -96,6 +148,19 @@ export function ReflectionModal({
       }
 
       // Calcular quality score básico
+      // Verificar permissões novamente antes de submeter
+      const permissionResult =
+        await reflectionPermissionChecker.canCreateReflection(
+          profile.id,
+          postId
+        );
+
+      if (!permissionResult.allowed) {
+        throw new Error(
+          permissionResult.reason || "Não é possível criar reflexão"
+        );
+      }
+
       let qualityScore = 0;
       if (content.length > 200) qualityScore += 10;
       if (sources.length > 0) qualityScore += 20;
@@ -167,6 +232,7 @@ export function ReflectionModal({
               <p className="text-gray-600 text-sm line-clamp-1">{postTitle}</p>
             </div>
             <button
+              type="button"
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               title="Fechar modal"
@@ -185,8 +251,31 @@ export function ReflectionModal({
             </div>
           )}
 
+          {/* Permission checking loading */}
+          {isCheckingPermissions && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4 text-sm flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              A verificar permissões...
+            </div>
+          )}
+
+          {/* Permission denied with contextual error message */}
+          {!canCreateReflection &&
+            errorState.hasError &&
+            !isCheckingPermissions && (
+              <div className="mb-6">
+                <RestrictionMessage
+                  type={errorState.errorType || "reflection_creation"}
+                  context="reflection_creation"
+                  variant="card"
+                  showAlternative={true}
+                  showDismiss={false}
+                />
+              </div>
+            )}
+
           {/* Create Reflection Form */}
-          {showForm ? (
+          {showForm && canCreateReflection ? (
             <form
               onSubmit={handleSubmit}
               className="bg-purple-50 rounded-xl p-4 mb-6"
@@ -281,17 +370,28 @@ export function ReflectionModal({
                 </Button>
               </div>
             </form>
-          ) : (
-            <button
-              onClick={() => setShowForm(true)}
-              className="w-full bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-dashed border-purple-300 rounded-xl p-4 mb-6 hover:border-purple-400 transition-colors"
-            >
-              <div className="flex items-center justify-center gap-2 text-purple-600">
-                <Plus className="w-5 h-5" />
-                <span className="font-semibold">Adicionar Reflexão</span>
+          ) : canCreateReflection && !isCheckingPermissions ? (
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={() => setShowForm(true)}
+                className="w-full bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-dashed border-purple-300 rounded-xl p-4 hover:border-purple-400 transition-colors"
+              >
+                <div className="flex items-center justify-center gap-2 text-purple-600">
+                  <Plus className="w-5 h-5" />
+                  <span className="font-semibold">Adicionar Reflexão</span>
+                </div>
+              </button>
+              <div className="mt-2 flex justify-center">
+                <HelpText
+                  text="Partilhe uma reflexão fundamentada sobre este conteúdo"
+                  type="info"
+                  variant="inline"
+                  size="sm"
+                />
               </div>
-            </button>
-          )}
+            </div>
+          ) : null}
 
           {/* Reflections List */}
           {isLoading ? (

@@ -1,0 +1,8 @@
+# Redirects para API routes
+/api/* /.netlify/functions/:splat 200
+
+# Redirect para Next.js Image Optimization
+/_next/image* /.netlify/images?url=:url&w=:width&q=:quality 200
+
+# Fallback para SPA
+/* /index.html 200

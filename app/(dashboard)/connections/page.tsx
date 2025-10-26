@@ -107,11 +107,6 @@ export default function ConnectionsPage() {
   };
 
   const handleConnect = async (userId: string) => {
-    if (!profile?.is_premium) {
-      alert("Apenas membros Premium podem solicitar conexões");
-      return;
-    }
-
     try {
       setActionLoading(userId);
 
@@ -120,12 +115,17 @@ export default function ConnectionsPage() {
 
       // Verificar se pode conectar (mesmo nível ou inferior)
       const targetLevel = targetUser.current_level || 1;
-      const currentLevel = profile.current_level || 1;
+      const currentLevel = profile?.current_level || 1;
 
       if (targetLevel > currentLevel) {
         alert(
           `Você precisa estar no nível ${targetLevel} ou superior para conectar com este usuário`
         );
+        return;
+      }
+
+      if (!profile?.id) {
+        alert("Erro: Perfil não encontrado");
         return;
       }
 
@@ -230,16 +230,6 @@ export default function ConnectionsPage() {
         </p>
       </div>
 
-      {/* Premium Warning */}
-      {!profile.is_premium && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <p className="text-amber-800 text-sm">
-            ⚠️ Você está no modo gratuito. Faça upgrade para Premium para
-            solicitar conexões ativamente.
-          </p>
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
@@ -317,6 +307,7 @@ export default function ConnectionsPage() {
                   <UserCard
                     key={user.id}
                     user={user}
+                    currentUserId={profile.id}
                     currentUserLevel={profile.current_level || 1}
                     connectionStatus={getConnectionStatus(user.id)}
                     onConnect={handleConnect}
@@ -346,6 +337,7 @@ export default function ConnectionsPage() {
                   <UserCard
                     key={user.id}
                     user={user}
+                    currentUserId={profile.id}
                     currentUserLevel={profile.current_level || 1}
                     connectionStatus="connected"
                   />
@@ -366,6 +358,7 @@ export default function ConnectionsPage() {
                   <UserCard
                     key={user.id}
                     user={user}
+                    currentUserId={profile.id}
                     currentUserLevel={profile.current_level || 1}
                     connectionStatus="pending_received"
                     onAccept={handleAccept}

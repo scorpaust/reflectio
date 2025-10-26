@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { Database } from "@/types/database.types";
 
-export async function createServerSupabaseClient() {
+export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -33,7 +33,7 @@ export async function createServerSupabaseClient() {
 }
 
 export async function syncGoogleAvatar(userId: string, providerData: any) {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createClient();
 
   try {
     // Verificar se o usuário já tem avatar

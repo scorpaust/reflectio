@@ -7,26 +7,35 @@ import { createClient } from "@/lib/supabase/client";
 import { UserProfile } from "@/types/user.types";
 import { ROUTES } from "@/lib/constants";
 import { checkPremiumExpiration } from "@/lib/utils/premium-expiration";
+import { UserPermissions, permissionService } from "@/lib/services/permissions";
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
+  permissions: UserPermissions | null;
+  isPremium: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  refreshPermissions: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
+  permissions: null,
+  isPremium: false,
   isLoading: true,
   signOut: async () => {},
   refreshProfile: async () => {},
+  refreshPermissions: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const supabase = createClient();
@@ -163,6 +172,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             setProfile(profileData);
+
+            // Carregar permissões do utilizador
+            try {
+              console.log("🔐 [AuthProvider] Loading user permissions");
+              const userPermissions =
+                await permissionService.getUserPermissions(session.user.id);
+              const premiumStatus =
+                await permissionService.getUserPremiumStatus(session.user.id);
+
+              setPermissions(userPermissions);
+              setIsPremium(premiumStatus.isPremium);
+
+              console.log("✅ [AuthProvider] Permissions loaded:", {
+                canViewPremium: userPermissions.canViewPremiumContent,
+                isPremium: premiumStatus.isPremium,
+              });
+            } catch (error) {
+              console.error(
+                "❌ [AuthProvider] Error loading permissions:",
+                error
+              );
+              // Set default free user permissions on error
+              setPermissions({
+                canViewPremiumContent: false,
+                canCreatePremiumContent: false,
+                canCreateReflectionOnPost: () => false,
+                canRequestConnection: false,
+                requiresMandatoryModeration: true,
+              });
+              setIsPremium(false);
+            }
           }
         } catch (error) {
           console.error("❌ [AuthProvider] Error fetching profile:", error);
@@ -170,6 +210,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         console.log("🔐 [AuthProvider] No session, clearing profile");
         setProfile(null);
+        setPermissions(null);
+        setIsPremium(false);
       }
 
       if (mounted) {
@@ -215,15 +257,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (profileData) {
         console.log("✅ [AuthProvider] Profile refreshed successfully");
         setProfile(profileData);
+
+        // Refresh permissions as well
+        await refreshPermissions();
       }
     } catch (error) {
       console.error("❌ [AuthProvider] Error in refreshProfile:", error);
     }
   };
 
+  const refreshPermissions = async () => {
+    if (!user) return;
+
+    try {
+      console.log(
+        "🔄 [AuthProvider] Refreshing permissions for user:",
+        user.id
+      );
+
+      const [userPermissions, premiumStatus] = await Promise.all([
+        permissionService.getUserPermissions(user.id),
+        permissionService.getUserPremiumStatus(user.id),
+      ]);
+
+      setPermissions(userPermissions);
+      setIsPremium(premiumStatus.isPremium);
+
+      console.log("✅ [AuthProvider] Permissions refreshed successfully:", {
+        canViewPremium: userPermissions.canViewPremiumContent,
+        isPremium: premiumStatus.isPremium,
+      });
+    } catch (error) {
+      console.error("❌ [AuthProvider] Error refreshing permissions:", error);
+    }
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, profile, isLoading, signOut, refreshProfile }}
+      value={{
+        user,
+        profile,
+        permissions,
+        isPremium,
+        isLoading,
+        signOut,
+        refreshProfile,
+        refreshPermissions,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -236,4 +316,9 @@ export const useAuth = () => {
     throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
+};
+
+export const usePermissions = () => {
+  const { permissions, isPremium, refreshPermissions } = useAuth();
+  return { permissions, isPremium, refreshPermissions };
 };

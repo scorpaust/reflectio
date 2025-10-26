@@ -3,23 +3,37 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Post } from "@/types/post.types";
-import { Book, Film, Image as ImageIcon, MessageCircle } from "lucide-react";
+import {
+  Book,
+  Film,
+  Image as ImageIcon,
+  MessageCircle,
+  Crown,
+  Lock,
+} from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { postFilterService } from "@/lib/services/postFiltering";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 interface UserPostsProps {
   userId: string;
 }
 
 export function UserPosts({ userId }: UserPostsProps) {
+  const { profile } = useAuth();
   const supabase = createClient();
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchPosts();
-  }, [userId]);
+    if (profile?.id) {
+      fetchPosts();
+    }
+  }, [userId, profile?.id]);
 
   const fetchPosts = async () => {
+    if (!profile?.id) return;
+
     try {
       const { data, error } = await supabase
         .from("posts")
@@ -32,7 +46,7 @@ export function UserPosts({ userId }: UserPostsProps) {
       if (error) throw error;
 
       // Filter and transform data to match Post interface
-      const validPosts = (data || [])
+      const allPosts = (data || [])
         .filter((post) => post.status !== null && post.created_at !== null)
         .map((post) => ({
           ...post,
@@ -46,9 +60,21 @@ export function UserPosts({ userId }: UserPostsProps) {
           quality_score: post.quality_score || 0,
           is_moderated: post.is_moderated || false,
           is_premium_content: post.is_premium_content || false,
+          // Campos de áudio com valores padrão (não implementados no banco ainda)
+          audio_url: null,
+          audio_duration: null,
+          audio_waveform: null,
+          audio_transcript: null,
         })) as Post[];
 
-      setPosts(validPosts);
+      // Filtrar posts baseado nas permissões do utilizador
+      const filteredPosts = await postFilterService.filterPostsForUser(
+        allPosts,
+        profile.id,
+        { includeOwnPosts: true }
+      );
+
+      setPosts(filteredPosts);
     } catch (error) {
       console.error("Error fetching user posts:", error);
     } finally {
@@ -99,15 +125,34 @@ export function UserPosts({ userId }: UserPostsProps) {
             <span className="text-xs uppercase font-semibold">{post.type}</span>
             <span className="text-gray-400">•</span>
             <span className="text-xs">{formatDate(post.created_at)}</span>
+            {post.is_premium_content && (
+              <>
+                <span className="text-gray-400">•</span>
+                <div className="flex items-center gap-1 text-amber-600">
+                  <Crown className="w-3 h-3" />
+                  <span className="text-xs font-semibold">Premium</span>
+                </div>
+              </>
+            )}
           </div>
 
           <h4 className="font-bold text-gray-800 mb-2 line-clamp-2">
             {post.title}
           </h4>
 
-          <p className="text-gray-600 text-sm line-clamp-3 mb-3">
-            {post.content}
-          </p>
+          {/* Show content preview or locked message */}
+          {post.is_premium_content &&
+          profile?.id !== userId &&
+          !profile?.is_premium ? (
+            <div className="flex items-center gap-2 text-gray-400 text-sm mb-3 p-2 bg-gray-50 rounded-lg">
+              <Lock className="w-4 h-4" />
+              <span>Conteúdo premium - Upgrade necessário</span>
+            </div>
+          ) : (
+            <p className="text-gray-600 text-sm line-clamp-3 mb-3">
+              {post.content}
+            </p>
+          )}
 
           <div className="flex items-center gap-4 text-sm text-gray-500">
             <span className="flex items-center gap-1">
